@@ -6,6 +6,7 @@
 set -e
 
 export FOCUSTRACKER_DATA_DIR="${FOCUSTRACKER_DATA_DIR:-/Users/Shared/FocusTracker}"
+export FOCUSTRACKER_PORT="${FOCUSTRACKER_PORT:-5050}"
 # Optional DND — wenn du keinen Shortcut hast, einfach die naechste Zeile auskommentieren:
 export FOCUSTRACKER_DND_SHORTCUT="${FOCUSTRACKER_DND_SHORTCUT:-Nicht Stoeren}"
 

@@ -1586,5 +1586,6 @@ if __name__ == "__main__":
     recover_session()
     monitor = threading.Thread(target=idle_monitor, daemon=True)
     monitor.start()
-    print("\n  FocusTracker running at http://localhost:5050\n")
-    app.run(host="127.0.0.1", port=5050, debug=False)
+    port = int(os.environ.get("FOCUSTRACKER_PORT", "5050"))
+    print(f"\n  FocusTracker running at http://localhost:{port}\n")
+    app.run(host="127.0.0.1", port=port, debug=False)

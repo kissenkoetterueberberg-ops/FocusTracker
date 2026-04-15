@@ -51,6 +51,7 @@ Optionale ENV-Variablen (siehe `.env.example`):
 | Variable | Default | Beschreibung |
 |---|---|---|
 | `FOCUSTRACKER_DATA_DIR` | `~/.focustracker` | Speicherort für SQLite-DB und Backups |
+| `FOCUSTRACKER_PORT` | `5050` | Port für Web-Dashboard |
 | `FOCUSTRACKER_DND_SHORTCUT` | (aus) | Name eines macOS-Shortcuts der DND togglet |
 
 Beispiel:
@@ -79,6 +80,13 @@ Wrapper-Skript:
 `start.sh` setzt `FOCUSTRACKER_DATA_DIR=/Users/Shared/FocusTracker` und legt die
 venv user-lokal unter `~/.focustracker-venv` an. Die DB wird zwischen den Accounts
 geteilt, der Code wird nur an einer Stelle gepflegt (`git pull` im Shared-Ordner).
+
+**Wenn beide Accounts gleichzeitig einen Server fahren sollen**, im zweiten Account
+einen anderen Port setzen (Standard 5050 ist sonst belegt):
+```bash
+FOCUSTRACKER_PORT=5051 /Users/Shared/FocusTrackerCode/start.sh
+```
+Beide Server schreiben in dieselbe DB. Statistiken aggregieren über alle Sessions.
 
 ## Voraussetzungen
 

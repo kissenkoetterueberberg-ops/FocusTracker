@@ -10,7 +10,8 @@ import urllib.error
 
 import rumps
 
-API = "http://localhost:5050/api"
+PORT = int(os.environ.get("FOCUSTRACKER_PORT", "5050"))
+API = f"http://localhost:{PORT}/api"
 
 
 def api_get(path):
@@ -159,7 +160,7 @@ class FocusTrackerMenuBar(rumps.App):
 
     def open_dash(self, _):
         import subprocess
-        subprocess.Popen(["open", "http://localhost:5050"])
+        subprocess.Popen(["open", f"http://localhost:{PORT}"])
 
     def quit_app(self, _):
         self._running = False
