@@ -68,6 +68,18 @@ Alles liegt in `~/.focustracker/`:
 - `focus.db` — SQLite-DB mit Sessions, Breaks, Projekten, Goals, Todos
 - `backups/` — automatische DB-Backups (rotierend, letzte 10)
 
+## Multi-User auf macOS (geteilte DB)
+
+Wenn mehrere macOS-Accounts dieselbe DB nutzen sollen, lohnt sich das mitgelieferte
+Wrapper-Skript:
+
+1. Code zentral nach `/Users/Shared/FocusTrackerCode/` klonen
+2. Beide Accounts starten via `bash /Users/Shared/FocusTrackerCode/start.sh`
+
+`start.sh` setzt `FOCUSTRACKER_DATA_DIR=/Users/Shared/FocusTracker` und legt die
+venv user-lokal unter `~/.focustracker-venv` an. Die DB wird zwischen den Accounts
+geteilt, der Code wird nur an einer Stelle gepflegt (`git pull` im Shared-Ordner).
+
 ## Voraussetzungen
 
 - macOS (Idle-Detection nutzt `ioreg`, Notifications nutzen `osascript`)
