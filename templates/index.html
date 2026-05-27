@@ -1,84 +1,87 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>FocusTracker</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0a0a0f;--surface:#14141f;--surface2:#1c1c2e;--border:#2a2a3e;
-  --text:#e4e4ef;--text2:#8888a0;--text3:#5a5a72;
-  --green:#00b894;--green-dim:rgba(0,184,148,.1);
-  --orange:#fdcb6e;--orange-dim:rgba(253,203,110,.1);
-  --red:#e17055;--red-dim:rgba(225,112,85,.1);
-  --accent:#6c5ce7;--accent2:#a29bfe;--accent-dim:rgba(108,92,231,.1);
+  --bg:#080b12;--surface:#0f1420;--surface2:#161d2e;--border:#1e2840;
+  --text:#e2e8f0;--text2:#7a8aa0;--text3:#475569;
+  --green:#10b981;--green-dim:rgba(16,185,129,.1);
+  --orange:#f59e0b;--orange-dim:rgba(245,158,11,.1);
+  --red:#ef4444;--red-dim:rgba(239,68,68,.1);
+  --accent:#14b8a6;--accent2:#5eead4;--accent-dim:rgba(20,184,166,.1);
+  --indigo:#6366f1;--indigo-dim:rgba(99,102,241,.1);
 }
-body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
-.container{max-width:720px;margin:0 auto;padding:40px 20px 100px}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv11"}
+.container{max-width:740px;margin:0 auto;padding:48px 20px 120px}
 
-.header{text-align:center;margin-bottom:48px}
-.header h1{font-size:14px;text-transform:uppercase;letter-spacing:4px;color:var(--text2);font-weight:500}
+.header{text-align:center;margin-bottom:52px}
+.header h1{font-size:13px;text-transform:uppercase;letter-spacing:5px;color:var(--text3);font-weight:600}
+.header h1 span{color:var(--accent);letter-spacing:0}
 
 /* Timer */
-.timer-card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:48px 32px;text-align:center;margin-bottom:24px;position:relative;overflow:hidden;transition:border-color .4s}
-.timer-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .3s}
-.timer-card.active{border-color:rgba(0,184,148,.25)}.timer-card.active::before{opacity:1;background:linear-gradient(90deg,transparent,var(--green),transparent);animation:shimmer 2s infinite}
-.timer-card.on-break{border-color:rgba(253,203,110,.25)}.timer-card.on-break::before{opacity:1;background:linear-gradient(90deg,transparent,var(--orange),transparent);animation:shimmer 3s infinite}
-@keyframes shimmer{0%,100%{opacity:.3}50%{opacity:1}}
+.timer-card{background:var(--surface);border:1px solid var(--border);border-radius:28px;padding:52px 36px;text-align:center;margin-bottom:24px;position:relative;overflow:hidden;transition:border-color .4s,box-shadow .4s}
+.timer-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .3s}
+.timer-card.active{border-color:rgba(16,185,129,.2);box-shadow:0 0 40px rgba(16,185,129,.04)}.timer-card.active::before{opacity:1;background:linear-gradient(90deg,transparent,var(--green),transparent);animation:shimmer 2.5s ease-in-out infinite}
+.timer-card.on-break{border-color:rgba(245,158,11,.2);box-shadow:0 0 40px rgba(245,158,11,.04)}.timer-card.on-break::before{opacity:1;background:linear-gradient(90deg,transparent,var(--orange),transparent);animation:shimmer 3s ease-in-out infinite}
+@keyframes shimmer{0%,100%{opacity:.2}50%{opacity:.9}}
 
-.timer-display{font-family:'JetBrains Mono',monospace;font-size:72px;font-weight:300;letter-spacing:4px;font-variant-numeric:tabular-nums;margin:16px 0;transition:color .3s}
+.timer-display{font-family:'JetBrains Mono',monospace;font-size:76px;font-weight:300;letter-spacing:2px;font-variant-numeric:tabular-nums;margin:20px 0;transition:color .3s;line-height:1}
 .timer-card.active .timer-display{color:var(--green)}
-.timer-card.on-break .timer-display{color:var(--orange);animation:pulse 1.5s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.timer-card.on-break .timer-display{color:var(--orange);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
 
-.timer-label{font-size:13px;color:var(--text2);margin-bottom:24px;height:20px}
-.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500}
-.badge::before{content:'';width:6px;height:6px;border-radius:50%}
+.timer-label{font-size:13px;color:var(--text2);margin-bottom:28px;height:22px;font-weight:400}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:500;letter-spacing:.3px}
+.badge::before{content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .badge-active{background:var(--green-dim);color:var(--green)}.badge-active::before{background:var(--green)}
-.badge-break{background:var(--orange-dim);color:var(--orange)}.badge-break::before{background:var(--orange);animation:pulse 1.2s infinite}
+.badge-break{background:var(--orange-dim);color:var(--orange)}.badge-break::before{background:var(--orange);animation:pulse 1.5s ease-in-out infinite}
 
-.timer-btns{display:flex;gap:8px;justify-content:center;align-items:center}
-.btn{border:none;cursor:pointer;font-size:15px;font-weight:500;padding:14px 48px;border-radius:12px;transition:all .2s;letter-spacing:.5px;font-family:inherit}
-.btn:active{transform:scale(.97)}
-.btn-start{background:var(--green);color:#fff}
-.btn-start:hover{background:#00d2a0;transform:translateY(-1px)}
-.btn-stop{background:var(--red-dim);color:var(--red);border:1px solid rgba(225,112,85,.2)}
-.btn-stop:hover{background:rgba(225,112,85,.15)}
-.btn-pause{background:var(--orange-dim);color:var(--orange);border:1px solid rgba(253,203,110,.2)}
-.btn-pause:hover{background:rgba(253,203,110,.15)}
-.btn-pause.resume{background:var(--green-dim);color:var(--green);border-color:rgba(0,184,148,.2)}
-.pomo-toggle{background:none;border:1px solid var(--border);color:var(--text2);padding:10px 16px;border-radius:10px;cursor:pointer;font-size:12px;transition:all .2s;text-transform:uppercase;letter-spacing:1px;font-family:inherit}
-.pomo-toggle.on{border-color:rgba(108,92,231,.4);color:var(--accent2);background:var(--accent-dim)}
-.pomo-info{margin-top:16px;font-size:12px;color:var(--text2);display:none;align-items:center;justify-content:center;gap:8px}
+.timer-btns{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
+.btn{border:none;cursor:pointer;font-size:14px;font-weight:500;padding:13px 44px;border-radius:12px;transition:all .18s;letter-spacing:.4px;font-family:'Inter',inherit}
+.btn:active{transform:scale(.96)}
+.btn-start{background:var(--accent);color:#fff;box-shadow:0 4px 24px rgba(20,184,166,.25)}
+.btn-start:hover{background:var(--accent2);color:#0f172a;transform:translateY(-1px);box-shadow:0 6px 28px rgba(20,184,166,.35)}
+.btn-stop{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.btn-stop:hover{background:rgba(239,68,68,.15)}
+.btn-pause{background:var(--orange-dim);color:var(--orange);border:1px solid rgba(245,158,11,.2)}
+.btn-pause:hover{background:rgba(245,158,11,.15)}
+.btn-pause.resume{background:var(--green-dim);color:var(--green);border-color:rgba(16,185,129,.2)}
+.pomo-toggle{background:none;border:1px solid var(--border);color:var(--text2);padding:10px 18px;border-radius:10px;cursor:pointer;font-size:11px;transition:all .18s;text-transform:uppercase;letter-spacing:1.5px;font-family:'Inter',inherit;font-weight:600}
+.pomo-toggle.on{border-color:rgba(99,102,241,.4);color:var(--indigo);background:var(--indigo-dim)}
+.pomo-info{margin-top:20px;font-size:12px;color:var(--text2);display:none;align-items:center;justify-content:center;gap:8px}
 .pomo-info.show{display:flex}
-.pdot{width:6px;height:6px;border-radius:50%;background:var(--border)}
-.pdot.done{background:var(--accent2)}
+.pdot{width:7px;height:7px;border-radius:50%;background:var(--border)}
+.pdot.done{background:var(--accent)}
 
 /* Goal */
-.goal-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:16px}
-.goal-pct{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:500;min-width:48px;color:var(--accent2);transition:color .3s}
+.goal-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 22px;margin-bottom:24px;display:flex;align-items:center;gap:18px}
+.goal-pct{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:500;min-width:48px;color:var(--accent);transition:color .3s}
 .goal-pct.done{color:var(--green)}
-.goal-track{flex:1;height:4px;background:var(--surface2);border-radius:3px;overflow:hidden}
-.goal-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .5s}
+.goal-track{flex:1;height:3px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.goal-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
 .goal-fill.done{background:var(--green)}
 .goal-text{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2);white-space:nowrap}
 
 /* Stats Grid */
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:24px}
-.stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 10px;text-align:center}
-.stat-value{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:400;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:24px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 10px;text-align:center;transition:border-color .15s}
+.stat:hover{border-color:var(--accent)}
+.stat-value{font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:400;margin-bottom:5px;font-variant-numeric:tabular-nums}
 @media (max-width:560px){.stats{grid-template-columns:repeat(3,1fr)}}
-.stat-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px}
+.stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;font-weight:600}
 
 /* Meta row */
 .meta-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
 
 /* Cards */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px}
-.card-title{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px;margin-bottom:20px}
+.card-title{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:18px;font-weight:600}
 
 /* Timeline */
 .tl-chart{display:flex;align-items:flex-end;gap:2px;height:64px}
@@ -102,7 +105,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 .week-bars{display:flex;align-items:flex-end;gap:8px;height:100px}
 .day-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px}
 .bar-wrap{width:100%;height:72px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
-.bar{width:100%;border-radius:6px 6px 2px 2px;background:var(--accent);min-height:2px;transition:height .5s}
+.bar{width:100%;border-radius:6px 6px 2px 2px;background:var(--accent);min-height:2px;transition:height .6s cubic-bezier(.4,0,.2,1)}
 .day-label{font-size:11px;color:var(--text2)}
 .bar-hours{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text2)}
 .week-cmp{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
@@ -115,7 +118,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 /* Achievements */
 .ach-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .ach{padding:10px 4px;text-align:center;border-radius:8px;opacity:.2;transition:all .3s;cursor:default;position:relative}
-.ach.on{opacity:1;background:var(--accent-dim)}
+.ach.on{opacity:1;background:var(--accent-dim);border:1px solid rgba(20,184,166,.15)}
 .ach:hover .ach-tip{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0)}
 .ach-icon{font-size:20px;line-height:1;margin-bottom:3px}
 .ach-name{font-size:8px;font-weight:600;color:var(--text2);line-height:1.2}
@@ -125,7 +128,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 .heatmap{display:grid;grid-template-columns:repeat(auto-fill,16px);gap:3px}
 .hm{width:14px;height:14px;border-radius:3px;background:var(--surface2);cursor:default;position:relative}
 .hm:hover::after{content:attr(data-t);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);padding:3px 8px;border-radius:4px;font-size:10px;white-space:nowrap;z-index:10;font-family:'JetBrains Mono',monospace;color:var(--text2);box-shadow:0 4px 12px rgba(0,0,0,.4)}
-.hm1{background:rgba(108,92,231,.15)}.hm2{background:rgba(108,92,231,.3)}.hm3{background:rgba(108,92,231,.5)}.hm4{background:rgba(0,184,148,.5)}
+.hm1{background:rgba(20,184,166,.15)}.hm2{background:rgba(20,184,166,.35)}.hm3{background:rgba(20,184,166,.6)}.hm4{background:rgba(16,185,129,.75)}
 
 /* Sessions */
 .session-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
@@ -134,27 +137,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 .session-dur{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500}
 .session-tag{font-size:10px;color:var(--orange);background:var(--orange-dim);padding:2px 8px;border-radius:6px;margin-left:6px}
 .session-note{font-size:11px;color:var(--text2);font-style:italic;margin-top:2px}
-.no-sessions{color:var(--text2);font-size:13px;text-align:center;padding:20px}
+.no-sessions{color:var(--text3);font-size:13px;text-align:center;padding:28px;font-style:italic}
 
 /* Settings */
-.settings-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px}
-.setting-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+.settings-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px;margin-bottom:20px}
+.setting-row{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--border)}
 .setting-row:last-child{border-bottom:none}
-.setting-label{font-size:13px}
-.setting-desc{font-size:11px;color:var(--text2)}
-.setting-input{font-family:'JetBrains Mono',monospace;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;width:80px;text-align:center;font-size:14px}
+.setting-label{font-size:13px;font-weight:500}
+.setting-desc{font-size:11px;color:var(--text3);margin-top:2px}
+.setting-input{font-family:'JetBrains Mono',monospace;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;width:80px;text-align:center;font-size:13px;transition:border-color .15s}
 .setting-input:focus{outline:none;border-color:var(--accent)}
-.setting-unit{font-size:12px;color:var(--text2);margin-left:6px}
-.export-row{display:flex;gap:8px;margin-top:12px}
-.btn-export{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;transition:all .2s;font-family:inherit}
+.setting-unit{font-size:12px;color:var(--text3);margin-left:6px}
+.export-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.btn-export{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:12px;transition:all .18s;font-family:'Inter',inherit;font-weight:500}
 .btn-export:hover{border-color:var(--accent);color:var(--text)}
 
 /* Level bar */
 .level-bar{display:flex;align-items:center;gap:12px;margin-bottom:4px}
-.level-name{font-size:13px;font-weight:600;color:var(--accent2)}
+.level-name{font-size:13px;font-weight:600;color:var(--accent)}
 .level-xp{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)}
 .xp-track{flex:1;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden}
-.xp-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .5s}
+.xp-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .6s cubic-bezier(.4,0,.2,1)}
 
 /* Focus Breakdown */
 .focus-bd{
@@ -173,22 +176,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 .focus-bd .good{color:var(--green)}.focus-bd .bad{color:var(--orange)}.focus-bd .neutral{color:var(--text)}
 
 /* Modal */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:100;align-items:center;justify-content:center}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);z-index:100;align-items:center;justify-content:center}
 .modal-overlay.show{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px;width:90%;max-width:400px}
-.modal h3{font-size:16px;font-weight:500;margin-bottom:16px}
-.modal textarea{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px;border-radius:10px;font-size:14px;resize:none;height:80px;font-family:inherit}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:32px;width:90%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.6)}
+.modal h3{font-size:17px;font-weight:600;margin-bottom:18px;color:var(--text)}
+.modal textarea{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:10px;font-size:14px;resize:none;height:80px;font-family:'Inter',inherit;transition:border-color .15s}
 .modal textarea:focus{outline:none;border-color:var(--accent)}
-.modal-btns{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
-.btn-sm{padding:10px 24px;border-radius:10px;font-size:13px;border:none;cursor:pointer;font-family:inherit}
-.btn-ghost{background:transparent;color:var(--text2)}
-.btn-primary{background:var(--accent);color:#fff}
+.modal-btns{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
+.btn-sm{padding:10px 22px;border-radius:10px;font-size:13px;border:none;cursor:pointer;font-family:'Inter',inherit;font-weight:500;transition:all .15s}
+.btn-ghost{background:transparent;color:var(--text2)}.btn-ghost:hover{color:var(--text)}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 2px 12px rgba(20,184,166,.25)}.btn-primary:hover{background:var(--accent2);color:#0f172a}
 .btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
 .btn:disabled:hover{background:inherit;transform:none}
 
 /* Project selector */
-.proj-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:16px;padding:0 8px}
-.proj-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:16px;font-size:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);cursor:pointer;transition:all .15s;font-family:inherit}
+.proj-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px;padding:0 8px}
+.proj-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;font-size:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);cursor:pointer;transition:all .15s;font-family:'Inter',inherit;font-weight:500}
 .proj-chip:hover{color:var(--text);border-color:var(--accent)}
 .proj-chip.on{color:var(--text);border-color:var(--accent);background:var(--accent-dim)}
 .proj-chip .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
@@ -211,12 +214,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 .proj-badge{font-size:10px;color:var(--accent2);background:var(--accent-dim);padding:1px 6px;border-radius:4px;margin-left:6px}
 
 /* Todos */
-.todo-filter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-.todo-chip{padding:4px 10px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:11px;transition:all .15s;font-family:inherit}
+.todo-filter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.todo-chip{padding:5px 12px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:11px;transition:all .15s;font-family:'Inter',inherit;font-weight:500}
 .todo-chip:hover{color:var(--text)}
 .todo-chip.on{background:var(--accent-dim);border-color:var(--accent);color:var(--accent2)}
-.todo-input-row{display:flex;gap:8px;margin-bottom:12px}
-.todo-input{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:13px;font-family:inherit}
+.todo-input-row{display:flex;gap:8px;margin-bottom:14px}
+.todo-input{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:10px;font-size:13px;font-family:'Inter',inherit;transition:border-color .15s}
 .todo-input:focus{outline:none;border-color:var(--accent)}
 .todo-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
 .todo-item:last-child{border-bottom:none}
@@ -242,15 +245,157 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 .goal-del:hover{color:var(--red)}
 
 /* Modal form */
-.modal input[type="text"],.modal input[type="number"],.modal input[type="date"],.modal select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:10px;font-family:inherit}
+.modal input[type="text"],.modal input[type="number"],.modal input[type="date"],.modal select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:10px;font-size:13px;margin-bottom:10px;font-family:'Inter',inherit;transition:border-color .15s}
 .modal input:focus,.modal select:focus{outline:none;border-color:var(--accent)}
-.modal label{display:block;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;margin-top:6px}
+.modal label{display:block;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;margin-top:8px;font-weight:600}
 .modal-row{display:flex;gap:8px}
 .modal-row>*{flex:1}
 .color-row{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
 .color-opt{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border-color .15s}
 .color-opt.on{border-color:var(--text)}
 
+/* Commitment */
+.cmt-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:24px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:560px){.cmt-card{grid-template-columns:1fr}}
+.cmt-cell{display:flex;flex-direction:column;gap:6px;cursor:pointer;padding:4px 6px;border-radius:8px;transition:background .15s;position:relative}
+.cmt-cell:hover{background:var(--accent-dim)}
+.cmt-cell + .cmt-cell{border-left:1px solid var(--border);padding-left:16px}
+@media (max-width:560px){.cmt-cell + .cmt-cell{border-left:0;border-top:1px solid var(--border);padding-left:6px;padding-top:10px}}
+.cmt-head{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px}
+.cmt-head .edit{opacity:0;transition:opacity .15s;font-size:10px;color:var(--accent2);text-transform:none;letter-spacing:0}
+.cmt-cell:hover .edit{opacity:1}
+.cmt-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:500;color:var(--text);display:flex;align-items:baseline;gap:8px}
+.cmt-val .target{color:var(--text2);font-weight:400}
+.cmt-val .pct{font-size:12px;padding:2px 8px;border-radius:10px;background:var(--surface2);color:var(--text2)}
+.cmt-val .pct.done{background:var(--green-dim);color:var(--green)}
+.cmt-val .pct.mid{background:var(--orange-dim);color:var(--orange)}
+.cmt-val .pct.low{background:var(--red-dim);color:var(--red)}
+.cmt-track{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+.cmt-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .5s}
+.cmt-fill.done{background:var(--green)}
+.cmt-none{font-size:11px;color:var(--text3);font-style:italic;padding:4px 0}
+
+/* Focus Trend */
+.fx-trend{margin-top:10px}
+.fx-trend svg{width:100%;height:80px;display:block}
+.fx-trend-title{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline}
+.fx-trend-title .avg{font-family:'JetBrains Mono',monospace;color:var(--text2);text-transform:none;letter-spacing:0}
+.fx-ax{stroke:var(--border);stroke-width:1;stroke-dasharray:2 3}
+.fx-line{fill:none;stroke:var(--accent2);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.fx-area{fill:var(--accent2);opacity:.12}
+.fx-dot{fill:var(--accent2)}
+.fx-dot.today{fill:var(--green);stroke:var(--surface);stroke-width:2}
+.fx-dot.selected{fill:var(--orange);stroke:var(--surface);stroke-width:2}
+.fx-dot:hover{fill:var(--text)}
+.fx-x-lbl{fill:var(--text3);font-family:'JetBrains Mono',monospace;font-size:9px}
+.fx-tip{fill:var(--surface);stroke:var(--border)}
+
+/* Week Report */
+.sx-report{background:linear-gradient(135deg,var(--surface2) 0%,var(--surface) 100%);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.sx-report-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.sx-report-hero{display:flex;align-items:baseline;gap:10px}
+.sx-report-big{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:400;color:var(--text);line-height:1}
+.sx-report-big .unit{font-size:14px;color:var(--text2);margin-left:2px}
+.sx-diff{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;padding:3px 9px;border-radius:10px}
+.sx-diff.up{background:var(--green-dim);color:var(--green)}
+.sx-diff.dn{background:var(--red-dim);color:var(--red)}
+.sx-diff.eq{background:var(--surface2);color:var(--text3)}
+.sx-report-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+@media (max-width:560px){.sx-report-grid{grid-template-columns:repeat(2,1fr)}}
+.sx-rk{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+.sx-rk-v{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;color:var(--text)}
+.sx-rk-l{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.sx-report-tops{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.sx-report-tops{grid-template-columns:1fr}}
+.sx-mini{display:flex;flex-direction:column;gap:3px}
+.sx-mini-title{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:2px}
+.sx-mini-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:2px 0}
+.sx-mini-row .n{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%}
+.sx-mini-row .n.prod::before{content:'●';color:var(--green);margin-right:5px;font-size:8px}
+.sx-mini-row .n.dist::before{content:'●';color:var(--red);margin-right:5px;font-size:8px}
+.sx-mini-row .n.neut::before{content:'●';color:var(--text3);margin-right:5px;font-size:8px}
+.sx-mini-row .v{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text2)}
+
+/* Stats Drill-Down */
+.sx-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.sx-nav{display:flex;align-items:center;gap:4px}
+.sx-nav button{background:var(--surface2);border:1px solid var(--border);color:var(--text2);width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.sx-nav button:hover:not(:disabled){color:var(--text);border-color:var(--accent)}
+.sx-nav button:disabled{opacity:.3;cursor:not-allowed}
+.sx-label{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2);min-width:150px;text-align:center}
+.sx-total{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text)}
+.sx-total b{color:var(--green);font-weight:500}
+
+.sx-week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:16px}
+.sx-day{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 6px 8px;text-align:center;cursor:pointer;transition:all .15s;position:relative;min-height:120px;display:flex;flex-direction:column;justify-content:flex-end;gap:6px}
+.sx-day:hover{border-color:var(--accent);transform:translateY(-1px)}
+.sx-day.active{border-color:var(--accent);background:var(--accent-dim)}
+.sx-day.today::after{content:'';position:absolute;top:4px;right:4px;width:4px;height:4px;border-radius:50%;background:var(--accent)}
+.sx-day-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px}
+.sx-day-date{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2);margin-top:-2px}
+.sx-bar-wrap{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:56px;margin:4px 0}
+.sx-bar{width:14px;display:flex;flex-direction:column-reverse;gap:1px;border-radius:3px;overflow:hidden}
+.sx-bar div{width:100%;min-height:1px}
+.sx-bar-f{background:var(--green)}
+.sx-bar-s{background:var(--orange)}
+.sx-bar-i{background:var(--red);opacity:.45}
+.sx-day-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);font-weight:500}
+
+.sx-drill{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:8px;display:none}
+.sx-drill.show{display:block}
+.sx-drill-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.sx-drill-title{font-size:14px;font-weight:500;color:var(--text)}
+.sx-drill-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2)}
+.sx-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.sx-kpi{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 6px;text-align:center}
+.sx-kpi-v{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:500}
+.sx-kpi-l{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.sx-heat{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;margin-bottom:6px}
+.sx-hr{aspect-ratio:1;background:var(--surface);border-radius:2px;position:relative;cursor:default}
+.sx-hr:hover::after{content:attr(data-t);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--bg);border:1px solid var(--border);padding:3px 7px;border-radius:4px;font-size:10px;white-space:nowrap;z-index:20;font-family:'JetBrains Mono',monospace;color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.sx-heat-lbls{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;font-size:8px;color:var(--text3);text-align:center;margin-bottom:12px;font-family:'JetBrains Mono',monospace}
+.sx-sub{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 6px}
+.sx-list{display:flex;flex-direction:column;gap:3px}
+.sx-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 8px;background:var(--surface);border-radius:6px;font-size:12px}
+.sx-row-name{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.sx-row-name.prod::before{content:'●';color:var(--green);margin-right:6px;font-size:10px}
+.sx-row-name.dist::before{content:'●';color:var(--red);margin-right:6px;font-size:10px}
+.sx-row-name.neut::before{content:'●';color:var(--text3);margin-right:6px;font-size:10px}
+.sx-row-bar{width:60px;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
+.sx-row-bar>div{height:100%;background:var(--accent);border-radius:2px}
+.sx-row-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2);min-width:54px;text-align:right}
+.sx-split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:600px){.sx-split{grid-template-columns:1fr}.sx-kpis{grid-template-columns:repeat(2,1fr)}}
+.sx-empty{color:var(--text3);font-size:11px;text-align:center;padding:12px;font-style:italic}
+
+/* AI Day Planner */
+.planner-btn{background:linear-gradient(135deg,var(--accent),var(--indigo));color:#fff;border:none;padding:10px 20px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;font-family:inherit;transition:all .2s;letter-spacing:.3px}
+.planner-btn:hover{opacity:.9;transform:translateY(-1px)}
+.planner-btn:disabled{opacity:.4;transform:none;cursor:not-allowed}
+.plan-block{border-left:3px solid var(--accent);padding:10px 14px;background:var(--surface2);border-radius:0 10px 10px 0;margin-bottom:8px;position:relative;transition:all .15s}
+.plan-block.deep_work{border-color:var(--green)}
+.plan-block.admin,.plan-block.communication{border-color:var(--orange)}
+.plan-block.meeting{border-color:#e17055}
+.plan-block.break{border-color:var(--text3);opacity:.6}
+.plan-block-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.plan-time{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text2);min-width:90px}
+.plan-title{font-size:13px;font-weight:500;flex:1}
+.plan-dur{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)}
+.plan-desc{font-size:11px;color:var(--text2);margin-top:2px;line-height:1.4}
+.plan-priority{font-size:9px;padding:2px 6px;border-radius:4px;background:var(--surface);color:var(--text3);text-transform:uppercase;letter-spacing:.8px}
+.plan-priority.critical{background:rgba(225,112,85,.15);color:var(--red)}
+.plan-priority.high{background:var(--orange-dim);color:var(--orange)}
+.plan-priority.medium{background:var(--accent-dim);color:var(--accent2)}
+.plan-check{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border);cursor:pointer;flex-shrink:0;position:relative;transition:all .15s;background:transparent;appearance:none;-webkit-appearance:none}
+.plan-check:checked{background:var(--green);border-color:var(--green)}
+.plan-check:checked::after{content:'\2713';position:absolute;inset:0;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.carry-badge{font-size:9px;padding:2px 7px;border-radius:10px;background:var(--orange-dim);color:var(--orange);margin-left:6px}
+.plan-summary{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;padding:10px 14px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent2)}
+.plan-stats{display:flex;gap:14px;font-size:11px;color:var(--text3);margin-bottom:12px;font-family:'JetBrains Mono',monospace}
+.plan-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.planner-textarea{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px;border-radius:10px;font-size:13px;resize:vertical;min-height:120px;font-family:inherit;line-height:1.5}
+.planner-textarea:focus{outline:none;border-color:var(--accent)}
 /* Motivation */
 .motiv-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .motiv-cell{display:flex;align-items:center;gap:10px;padding:4px 8px}
@@ -261,7 +406,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 </head>
 <body>
 <div class="container">
-  <div class="header"><h1>FocusTracker</h1></div>
+  <div class="header"><h1>Focus<span>·</span>Tracker</h1></div>
 
   <!-- Timer -->
   <div class="timer-card" id="timerCard">
@@ -274,8 +419,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
       <button class="btn btn-stop" id="stopBtn" onclick="requestStop()" disabled>Stop</button>
       <button class="pomo-toggle" id="pomoBtn" onclick="togglePomodoro()">Pomodoro</button>
     </div>
-    <div id="startHint" style="font-size:11px;color:var(--text3);margin-top:10px;display:none">Projekt waehlen um zu starten</div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">
+      <button class="btn-sm btn-ghost" onclick="openOfflineModal()" title="Tracke eine Task, die nicht am Computer passiert — ohne Idle-Stop">📵 Offline-Task</button>
+      <button class="btn-sm btn-ghost" onclick="openManualModal()" title="Arbeitszeit nachtragen (zaehlt nicht in den Fokusscore)">✍️ Nachtragen</button>
+    </div>
+    <div id="startHint" style="font-size:11px;color:var(--text3);margin-top:10px;display:none;transition:color .3s">Select a project to start</div>
     <div class="pomo-info" id="pomoInfo"><span id="pomoPhase"></span><span id="pomoDots"></span></div>
+    <div style="margin-top:18px;font-size:10px;color:var(--text3);letter-spacing:.5px">
+      <kbd style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:9px">Space</kbd> start/stop &nbsp;
+      <kbd style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:9px">P</kbd> pause &nbsp;
+      <kbd style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:9px">Esc</kbd> close
+    </div>
+  </div>
+
+  <!-- Commitment -->
+  <div class="cmt-card" id="cmtCard">
+    <div class="cmt-cell" onclick="openCommitModal('day')">
+      <div class="cmt-head"><span>Heute</span><span class="edit">bearbeiten</span></div>
+      <div id="cmtDay"><div class="cmt-none">Tippe um Tages-Commitment zu setzen</div></div>
+    </div>
+    <div class="cmt-cell" onclick="openCommitModal('week')">
+      <div class="cmt-head"><span>Woche</span><span class="edit">bearbeiten</span></div>
+      <div id="cmtWeek"><div class="cmt-none">Tippe um Wochen-Commitment zu setzen</div></div>
+    </div>
   </div>
 
   <!-- Goal -->
@@ -308,9 +474,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 
   <!-- Meta: Level, Rating, Sessions -->
   <div class="meta-row">
-    <div class="stat"><div class="stat-value" style="color:var(--accent2)" id="metaLevel">Lv 1</div><div class="stat-label">Level</div></div>
+    <div class="stat"><div class="stat-value" style="color:var(--accent)" id="metaLevel">Lv 1</div><div class="stat-label">Level</div></div>
     <div class="stat"><div class="stat-value" id="metaRating">—</div><div class="stat-label">Rating</div></div>
-    <div class="stat"><div class="stat-value" style="color:var(--accent2)" id="metaSessions">0</div><div class="stat-label">Sessions</div></div>
+    <div class="stat"><div class="stat-value" style="color:var(--accent)" id="metaSessions">0</div><div class="stat-label">Sessions</div></div>
   </div>
 
   <!-- Level XP Bar -->
@@ -331,6 +497,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
       <button class="btn-add" onclick="addTodo()">+ Add</button>
     </div>
     <div id="todosList"></div>
+  </div>
+
+  <!-- AI Day Planner -->
+  <div class="card" id="plannerCard">
+    <div class="card-head">
+      <div class="card-title">KI Tagesplan</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-add" onclick="loadTodayPlan()" id="planRefreshBtn" title="Plan laden">Laden</button>
+        <button class="planner-btn" onclick="openPlannerModal()" id="openPlannerBtn">Plan erstellen</button>
+      </div>
+    </div>
+    <div id="plannerContent">
+      <div style="color:var(--text2);font-size:12px;text-align:center;padding:16px">Noch kein Plan fuer heute — Plan erstellen um loszulegen.</div>
+    </div>
   </div>
 
   <!-- Projekte -->
@@ -364,11 +544,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
     <div class="tl-labels" id="tlLabels"></div>
   </div>
 
-  <!-- Week -->
+  <!-- Stats Explorer -->
   <div class="card">
-    <div class="card-title">Diese Woche</div>
-    <div class="week-bars" id="weekBars"></div>
-    <div class="week-cmp" id="weekCmp"></div>
+    <div class="sx-head">
+      <div class="card-title" style="margin:0">Statistik</div>
+      <div class="sx-nav">
+        <button id="sxPrev" onclick="sxShift(-1)" title="Vorige Woche">&lsaquo;</button>
+        <div class="sx-label" id="sxLabel">—</div>
+        <button id="sxNext" onclick="sxShift(1)" title="Naechste Woche">&rsaquo;</button>
+      </div>
+    </div>
+    <div class="sx-report" id="sxReport"></div>
+    <div class="sx-week" id="sxWeek"></div>
+    <div class="sx-drill" id="sxDrill"></div>
   </div>
 
   <!-- Achievements -->
@@ -405,6 +593,130 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
       <button class="btn-export" onclick="location.href='/api/export?format=csv&days=30'">CSV 30 Tage</button>
       <button class="btn-export" onclick="location.href='/api/export?format=csv&days=7'">CSV 7 Tage</button>
       <button class="btn-export" onclick="window.open('/api/export?format=json&days=30')">JSON</button>
+    </div>
+  </div>
+
+  <!-- Activity Detection -->
+  <div class="settings-card">
+    <div class="card-title">Activity Detection</div>
+    <div id="actCurrent" style="font-size:12px;color:var(--text2);margin-bottom:10px">Aktive App: —</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div class="setting-label" style="margin-bottom:4px">🚫 Ablenkungs-Domains (kommasepariert)</div>
+        <div class="setting-desc" style="margin-bottom:4px">Browser-Tabs mit diesen Domains → Auto-Pause</div>
+        <textarea id="actBlockDoms" style="width:100%;min-height:48px;background:var(--surface2,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:inherit" onchange="saveActivityConfig()"></textarea>
+      </div>
+      <div>
+        <div class="setting-label" style="margin-bottom:4px">🚫 Ablenkungs-Apps</div>
+        <textarea id="actBlockApps" style="width:100%;min-height:40px;background:var(--surface2,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:inherit" onchange="saveActivityConfig()"></textarea>
+      </div>
+      <div>
+        <div class="setting-label" style="margin-bottom:4px">✅ Produktive Domains</div>
+        <div class="setting-desc" style="margin-bottom:4px">Wenn Tracker aus ist & du >60s hier → Start-Reminder</div>
+        <textarea id="actProdDoms" style="width:100%;min-height:48px;background:var(--surface2,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:inherit" onchange="saveActivityConfig()"></textarea>
+      </div>
+      <div>
+        <div class="setting-label" style="margin-bottom:4px">✅ Produktive Apps</div>
+        <textarea id="actProdApps" style="width:100%;min-height:40px;background:var(--surface2,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:inherit" onchange="saveActivityConfig()"></textarea>
+      </div>
+    </div>
+    <div class="setting-row" style="margin-top:14px"><div><div class="setting-label">Ablenkung → Tab schließen</div><div class="setting-desc">Blocklist-Tabs beim Auto-Pause automatisch schließen</div></div><div><input type="checkbox" id="cfgAutoCloseTabs" onchange="saveConfig()" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer"></div></div>
+    <div class="setting-row"><div><div class="setting-label">Ablenkung → Pause nach</div></div><div style="display:flex;align-items:center"><input type="number" class="setting-input" id="cfgDistGrace" value="30" min="5" max="300" onchange="saveConfig()"><span class="setting-unit">Sek</span></div></div>
+    <div class="setting-row"><div><div class="setting-label">Auto-Stop Tag</div><div class="setting-desc">Inaktivität tagsüber</div></div><div style="display:flex;align-items:center"><input type="number" class="setting-input" id="cfgStopDay" value="45" min="10" max="180" onchange="saveConfig()"><span class="setting-unit">Min</span></div></div>
+    <div class="setting-row"><div><div class="setting-label">Auto-Stop Nacht</div><div class="setting-desc">22–06 Uhr, strenger</div></div><div style="display:flex;align-items:center"><input type="number" class="setting-input" id="cfgStopNight" value="15" min="5" max="60" onchange="saveConfig()"><span class="setting-unit">Min</span></div></div>
+  </div>
+
+  <!-- AI Planner Settings -->
+  <div class="settings-card">
+    <div class="card-title">KI Tagesplan</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:12px">Groq ist kostenlos &amp; schnell (Llama 3.3 70B). Hol dir einen Key bei <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color:var(--accent)">console.groq.com/keys</a>.</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div class="setting-label" style="margin-bottom:4px">Groq API Key <span id="aiGroqStatus" style="font-size:10px;color:var(--text2);margin-left:6px"></span></div>
+        <input type="password" id="aiGroqKey" placeholder="gsk_..." autocomplete="off" style="width:100%;background:var(--surface2,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:inherit">
+      </div>
+      <div>
+        <div class="setting-label" style="margin-bottom:4px">Anthropic API Key <span style="font-size:10px;color:var(--text2)">(optional Fallback)</span> <span id="aiAnthStatus" style="font-size:10px;color:var(--text2);margin-left:6px"></span></div>
+        <input type="password" id="aiAnthKey" placeholder="sk-ant-..." autocomplete="off" style="width:100%;background:var(--surface2,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:inherit">
+      </div>
+      <div>
+        <div class="setting-label" style="margin-bottom:4px">Provider</div>
+        <select id="aiProvider" style="width:100%;background:var(--surface2,#1a1a1a);color:var(--text,#fff);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;font-family:inherit">
+          <option value="auto">Auto (Groq → Anthropic Fallback)</option>
+          <option value="groq">Nur Groq</option>
+          <option value="anthropic">Nur Anthropic</option>
+        </select>
+      </div>
+      <button class="btn-sm btn-primary" onclick="saveAiConfig()" style="align-self:flex-start">Speichern</button>
+      <div id="aiConfigMsg" style="font-size:11px;color:var(--text2);min-height:14px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Planner Modal -->
+<div class="modal-overlay" id="plannerModal">
+  <div class="modal" style="max-width:520px;width:95%">
+    <h3>KI Tagesplan erstellen</h3>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Schreib alle Aufgaben rein — die KI erstellt einen realistischen Zeitplan mit Deep-Work-Bloecken.</div>
+    <label>Was willst du heute schaffen? (Brain-Dump)</label>
+    <textarea class="planner-textarea" id="plannerInput" placeholder="z.B. Brief an Kunde X schreiben, Steuerkram erledigen, Newsletter, Meeting mit Tim 14 Uhr, Bugfix im Frontend..."></textarea>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+      <label style="margin:0;white-space:nowrap">Arbeitsstunden:</label>
+      <input type="number" id="planWorkHours" min="1" max="14" value="6" style="width:64px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:inherit;text-align:center">
+    </div>
+    <div id="plannerCarryover" style="display:none;margin-top:10px;padding:10px 12px;background:var(--orange-dim);border-radius:8px;border:1px solid rgba(253,203,110,.2)">
+      <div style="font-size:11px;color:var(--orange);margin-bottom:6px;font-weight:600">Offene Todos von gestern:</div>
+      <div id="plannerCarryoverList"></div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer;font-size:12px;color:var(--text2)">
+        <input type="checkbox" id="plannerIncludeCarryover" checked style="accent-color:var(--accent)"> In den Plan einbeziehen
+      </label>
+    </div>
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="btn-sm btn-ghost" onclick="closePlannerModal()">Abbrechen</button>
+      <button class="btn-sm btn-primary" id="plannerGenerateBtn" onclick="generatePlan()">Plan generieren</button>
+    </div>
+  </div>
+</div>
+
+<!-- Offline-Task Modal -->
+<div class="modal-overlay" id="offlineModal">
+  <div class="modal" style="max-width:440px;width:95%">
+    <h3>📵 Offline-Task tracken</h3>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Timer laeuft durch — auch ohne Tastatur/Maus. Kein Auto-Stop, keine Idle-Notifications. Zaehlt als Arbeitszeit, aber <b>nicht</b> in den Fokusscore.</div>
+    <label>Projekt</label>
+    <select id="offlineProject"></select>
+    <label>Was machst du? (optional)</label>
+    <input type="text" id="offlineNote" placeholder="z.B. Kunden-Meeting, handschriftliche Skizze..." style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:inherit">
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="btn-sm btn-ghost" onclick="$('offlineModal').classList.remove('show')">Abbrechen</button>
+      <button class="btn-sm btn-primary" onclick="startOfflineSession()">Jetzt starten</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manual-Entry Modal -->
+<div class="modal-overlay" id="manualModal">
+  <div class="modal" style="max-width:460px;width:95%">
+    <h3>✍️ Arbeitszeit nachtragen</h3>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Vergessen zu starten? Trag die Zeit nachtraeglich ein. Zaehlt ins Tagesziel, aber <b>nicht</b> in den Fokusscore.</div>
+    <div style="display:flex;gap:8px">
+      <div style="flex:1">
+        <label>Start</label>
+        <input type="datetime-local" id="manualStart" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:inherit">
+      </div>
+      <div style="flex:1">
+        <label>Ende</label>
+        <input type="datetime-local" id="manualEnd" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:inherit">
+      </div>
+    </div>
+    <label>Projekt</label>
+    <select id="manualProject"></select>
+    <label>Notiz</label>
+    <input type="text" id="manualNote" placeholder="optional" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:inherit">
+    <div id="manualMsg" style="font-size:11px;color:#f87171;margin-top:8px;min-height:14px"></div>
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="btn-sm btn-ghost" onclick="$('manualModal').classList.remove('show')">Abbrechen</button>
+      <button class="btn-sm btn-primary" onclick="saveManualSession()">Speichern</button>
     </div>
   </div>
 </div>
@@ -502,6 +814,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
   </div>
 </div>
 
+<!-- Commitment Modal -->
+<div class="modal-overlay" id="commitModal">
+  <div class="modal">
+    <h3 id="cmTitle">Commitment</h3>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:10px" id="cmSub"></div>
+    <label>Stunden</label>
+    <input type="number" id="cmHours" min="0" max="168" step="0.5" placeholder="z.B. 6">
+    <div class="modal-btns">
+      <button class="btn-sm btn-ghost" onclick="$('commitModal').classList.remove('show')">Spaeter</button>
+      <button class="btn-sm btn-ghost" onclick="saveCommitment(0)" id="cmClear" style="display:none">Loeschen</button>
+      <button class="btn-sm btn-primary" onclick="saveCommitment(parseFloat(document.getElementById('cmHours').value)||0)">Speichern</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal -->
 <div class="modal-overlay" id="noteModal">
   <div class="modal">
@@ -516,12 +843,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',system-ui,san
 
 <script>
 let isActive=false,t0=null;
-let PROJECTS=[],selectedProjectId=null,todoFilter='all',pmColor='#6c5ce7',projRange='week';
-const PALETTE=['#6c5ce7','#00b894','#fdcb6e','#e17055','#0984e3','#d63031','#a29bfe','#55efc4'];
+let PROJECTS=[],selectedProjectId=null,todoFilter='all',pmColor='#14b8a6',projRange='week';
+const PALETTE=['#14b8a6','#10b981','#6366f1','#f59e0b','#ef4444','#0ea5e9','#a855f7','#5eead4'];
 const $=id=>document.getElementById(id);
 const F=s=>{if(s<0)s=0;const h=~~(s/3600),m=~~(s%3600/60),ss=~~(s%60);return`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`};
 const Fs=s=>{const h=~~(s/3600),m=~~(s%3600/60);return h>0?`${h}:${String(m).padStart(2,'0')}`:`0:${String(m).padStart(2,'0')}`};
 const Fm=s=>`${~~(s/60)}:${String(s%60).padStart(2,'0')}`;
+const Fsx=s=>{s=~~s;if(s<60)return s+'s';const h=~~(s/3600),m=~~(s%3600/60);return h>0?`${h}h ${m}m`:`${m}m`};
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const api=async(p,o)=>(await fetch('/api/'+p,o)).json();
 
@@ -559,6 +887,63 @@ async function stopSession(n){
   await api('stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note:n})});
   isActive=false;refresh();
 }
+
+function _projectOptions(selectedId){
+  const opts=['<option value="">— ohne Projekt —</option>'];
+  (PROJECTS||[]).forEach(p=>{
+    const sel=(p.id===selectedId)?' selected':'';
+    opts.push(`<option value="${p.id}"${sel}>${esc(p.name)}</option>`);
+  });
+  return opts.join('');
+}
+
+function openOfflineModal(){
+  if(isActive){alert('Erst laufende Session stoppen.');return}
+  $('offlineProject').innerHTML=_projectOptions(selectedProjectId);
+  $('offlineNote').value='';
+  $('offlineModal').classList.add('show');
+  setTimeout(()=>$('offlineNote').focus(),50);
+}
+async function startOfflineSession(){
+  const pid=$('offlineProject').value;
+  const note=$('offlineNote').value.trim();
+  const payload={source:'offline',note:note};
+  if(pid) payload.project_id=+pid;
+  const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(!r.ok){ const e=await r.json().catch(()=>({})); alert('Fehler: '+(e.error||r.status)); return; }
+  if(pid){ selectedProjectId=+pid; try{localStorage.setItem('ft_project',pid)}catch(e){} renderProjectChips(); }
+  $('offlineModal').classList.remove('show');
+  isActive=true; syncStatus();
+}
+
+function _pad(n){return String(n).padStart(2,'0')}
+function _toLocalInput(d){return `${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`}
+
+function openManualModal(){
+  const now=new Date();
+  const hourAgo=new Date(now.getTime()-60*60*1000);
+  $('manualStart').value=_toLocalInput(hourAgo);
+  $('manualEnd').value=_toLocalInput(now);
+  $('manualProject').innerHTML=_projectOptions(selectedProjectId);
+  $('manualNote').value='';
+  $('manualMsg').textContent='';
+  $('manualModal').classList.add('show');
+}
+async function saveManualSession(){
+  const msg=$('manualMsg');
+  msg.style.color='#f87171';msg.textContent='';
+  const s=$('manualStart').value,e=$('manualEnd').value;
+  if(!s||!e){msg.textContent='Start und Ende erforderlich';return}
+  if(new Date(e)<=new Date(s)){msg.textContent='Ende muss nach Start liegen';return}
+  const payload={start_time:s,end_time:e,note:$('manualNote').value.trim()};
+  const pid=$('manualProject').value;
+  if(pid) payload.project_id=+pid;
+  const r=await fetch('/api/sessions/manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){ msg.textContent=j.error||('Fehler '+r.status); return; }
+  $('manualModal').classList.remove('show');
+  refresh();
+}
 async function togglePause(){
   if(!isActive)return;
   await api('pause',{method:'POST'});
@@ -570,6 +955,7 @@ async function syncStatus(){
   const s=await api('status');
   const card=$('timerCard'),startB=$('startBtn'),stopB=$('stopBtn'),pauseB=$('pauseBtn'),label=$('timerLabel'),pi=$('pomoInfo');
   isActive=s.active;$('pomoBtn').classList.toggle('on',s.pomodoro_enabled);
+  updateActivityBadge(s);
   if(s.active){
     t0=Date.now()-s.elapsed_sec*1000;
     startB.disabled=true;stopB.disabled=false;pauseB.disabled=false;
@@ -579,7 +965,11 @@ async function syncStatus(){
     if(s.on_break){
       card.className='timer-card on-break';
       const bm=~~(s.break_sec/60),bs=s.break_sec%60;
-      label.innerHTML=`<span class="badge badge-break"><span></span>Pause ${bm}:${String(bs).padStart(2,'0')}</span>`;
+      const reason=s.paused_by_distraction?'Ablenkung':'Pause';
+      label.innerHTML=`<span class="badge badge-break"><span></span>${reason} ${bm}:${String(bs).padStart(2,'0')}</span>`;
+    }else if(s.source==='offline'){
+      card.className='timer-card active';
+      label.innerHTML=`<span class="badge badge-active" style="background:#fbbf2422;color:#fbbf24"><span></span>📵 Offline-Task</span>`;
     }else{
       card.className='timer-card active';
       label.innerHTML=s.idle_sec>30?`<span class="badge badge-break"><span></span>Inaktiv ${~~s.idle_sec}s</span>`:`<span class="badge badge-active"><span></span>Aktiv</span>`;
@@ -609,16 +999,22 @@ async function loadToday(){
   // Focus breakdown
   if(d.focus_breakdown){
     const fb=d.focus_breakdown;
+    const offlineRow=fb.offline_work_sec?`<div class="focus-bd-row"><span>Offline / Nachtrag</span><span class="neutral">${Fs(fb.offline_work_sec)}</span></div>`:'';
     $('focusBreakdown').innerHTML=`
       <div class="focus-bd-title">Fokus-Score Aufschluesselung</div>
-      <div class="focus-bd-row"><span>Arbeitszeit</span><span class="good">${Fs(fb.work_sec)}</span></div>
+      <div class="focus-bd-row"><span>Live-Arbeit</span><span class="good">${Fs(fb.work_sec)}</span></div>
+      ${offlineRow}
       <div class="focus-bd-row"><span>Auto-Ablenkungen (&gt;3 Min)</span><span class="bad">${fb.long_break_count}x \u2014 ${Fs(fb.long_break_sec)}</span></div>
       <div class="focus-bd-row"><span>Mini-Unterbrechungen (\u22643 Min)</span><span class="neutral">${fb.short_break_count}x \u2014 ${Fs(fb.short_break_sec)}</span></div>
       <div class="focus-bd-row"><span>Richtige Pausen (manuell)</span><span class="good">${fb.manual_break_count||0}x \u2014 ${Fs(fb.manual_break_sec||0)}</span></div>
       <div class="focus-bd-divider"></div>
       <div class="focus-bd-row"><span><strong>Score</strong></span><span style="color:${d.focus_score>=80?'var(--green)':d.focus_score>=50?'var(--orange)':'var(--red)'};font-size:14px"><strong>${d.focus_score}%</strong></span></div>
-      <div class="focus-bd-formula">Berechnung: Arbeit / (Arbeit + Auto-Ablenkungen).<br>Manuelle Pausen (Essen etc.) zaehlen nicht gegen den Score.</div>
+      <div class="focus-bd-formula">Berechnung: Live-Arbeit / (Live-Arbeit + Auto-Ablenkungen).<br>Offline-/Nachtrag-Zeit und manuelle Pausen zaehlen nicht.</div>
+      <div class="fx-trend" id="focusTrendDash"></div>
     `;
+    /* Widen breakdown for the trend chart */
+    $('focusBreakdown').style.width = '360px';
+    renderFocusHourly('focusTrendDash', new Date().toISOString().slice(0,10), 'Fokus-Verlauf heute (stuendlich)');
   }
   const gh=d.daily_goal/3600;
   $('goalPct').textContent=d.goal_pct+'%';$('goalPct').className='goal-pct'+(d.goal_pct>=100?' done':'');
@@ -649,21 +1045,449 @@ async function loadToday(){
     const tag=sb.length?`<span class="session-tag">${sb.length}x Pause (${~~(bt/60)}m)</span>`:'';
     const proj=PROJECTS.find(p=>p.id===s.project_id);
     const ptag=proj?`<span class="session-tag" style="color:${proj.color};background:${proj.color}22">${esc(proj.name)}</span>`:'';
+    const src=s.source||'live';
+    const srcTag=src==='offline'?'<span class="session-tag" title="Offline — zaehlt nicht in den Fokusscore" style="color:#fbbf24;background:#fbbf2422">📵 Offline</span>':src==='manual'?'<span class="session-tag" title="Nachgetragen — zaehlt nicht in den Fokusscore" style="color:#a78bfa;background:#a78bfa22">✍️ Nachtrag</span>':'';
     const n=s.note?`<div class="session-note">${esc(s.note)}</div>`:'';
-    return`<div class="session-item" style="cursor:pointer" onclick="openSessionModal(${s.id})"><div><span class="session-time">${st} \u2013 ${en}</span>${ptag}${tag}${n}</div><div class="session-dur">${s.duration_sec?F(s.duration_sec):'--'}</div></div>`;
+    return`<div class="session-item" style="cursor:pointer" onclick="openSessionModal(${s.id})"><div><span class="session-time">${st} \u2013 ${en}</span>${srcTag}${ptag}${tag}${n}</div><div class="session-dur">${s.duration_sec?F(s.duration_sec):'--'}</div></div>`;
   }).reverse().join('');
 }
 
-async function loadWeek(){
-  const w=await api('week');const mx=Math.max(...w.days.map(d=>d.work_sec),3600);
-  $('weekBars').innerHTML=w.days.map(d=>{
-    const p=(d.work_sec/mx*100).toFixed(1);const h=(d.work_sec/3600).toFixed(1);
-    const td=d.date===new Date().toISOString().slice(0,10);
-    return`<div class="day-col"><div class="bar-hours">${h}h</div><div class="bar-wrap"><div class="bar" style="height:${p}%;${td?'background:var(--green)':''}"></div></div><div class="day-label" style="${td?'color:var(--text);font-weight:600':''}">${d.label}</div></div>`;
+/* --- Commitments --- */
+let _cmtData = null, _cmtEditing = null;
+
+async function loadCommitment(){
+  const c = await api('commitment');
+  _cmtData = c;
+  const renderCell = (elId, info, label) => {
+    const el = $(elId);
+    if(!info.target_sec){
+      el.innerHTML = `<div class="cmt-none">Tippe um ${label}-Commitment zu setzen</div>`;
+      return;
+    }
+    const pct = Math.round(info.work_sec / info.target_sec * 100);
+    const cls = pct >= 100 ? 'done' : pct >= 60 ? 'mid' : 'low';
+    const fillW = Math.min(100, pct);
+    const targetH = (info.target_sec/3600).toFixed(info.target_sec%3600===0?0:1);
+    const workH = (info.work_sec/3600).toFixed(1);
+    el.innerHTML = `
+      <div class="cmt-val">
+        <span>${workH}h <span class="target">/ ${targetH}h</span></span>
+        <span class="pct ${cls}">${pct}%</span>
+      </div>
+      <div class="cmt-track"><div class="cmt-fill ${pct>=100?'done':''}" style="width:${fillW}%"></div></div>
+    `;
+  };
+  renderCell('cmtDay', c.day, 'Tages');
+  renderCell('cmtWeek', c.week, 'Wochen');
+
+  // Auto-prompt (once per browser session, when values missing)
+  try{
+    const lastPromptDay = localStorage.getItem('ft_cmt_prompt_day');
+    const today = new Date().toISOString().slice(0,10);
+    if(!c.day.target_sec && lastPromptDay !== today){
+      localStorage.setItem('ft_cmt_prompt_day', today);
+      setTimeout(()=>openCommitModal('day', true), 400);
+    } else if(!c.week.target_sec){
+      const wkKey = c.week.key;
+      const lastPromptWk = localStorage.getItem('ft_cmt_prompt_wk');
+      if(lastPromptWk !== wkKey){
+        localStorage.setItem('ft_cmt_prompt_wk', wkKey);
+        setTimeout(()=>openCommitModal('week', true), 400);
+      }
+    }
+  }catch(e){}
+}
+
+function openCommitModal(type, auto){
+  _cmtEditing = type;
+  const info = type === 'day' ? _cmtData?.day : _cmtData?.week;
+  const isWeek = type === 'week';
+  $('cmTitle').textContent = isWeek ? 'Wochen-Commitment' : 'Tages-Commitment';
+  const today = new Date().toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long'});
+  $('cmSub').textContent = auto
+    ? (isWeek ? 'Neue Woche — wie viele Stunden willst du diese Woche arbeiten?' : `${today} — wie viele Stunden willst du heute arbeiten?`)
+    : (isWeek ? 'Ziel fuer diese Woche' : `Ziel fuer ${today}`);
+  $('cmHours').value = info?.target_sec ? (info.target_sec/3600).toString() : (isWeek ? '30' : '6');
+  $('cmClear').style.display = info?.target_sec ? '' : 'none';
+  $('commitModal').classList.add('show');
+  setTimeout(()=>$('cmHours').focus(), 50);
+}
+
+async function saveCommitment(hours){
+  if(!_cmtEditing) return;
+  await api('commitment', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({type: _cmtEditing, hours: hours})
+  });
+  $('commitModal').classList.remove('show');
+  _cmtEditing = null;
+  loadCommitment();
+}
+
+/* Save on Enter */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const h = document.getElementById('cmHours');
+  if(h) h.addEventListener('keydown', e=>{ if(e.key==='Enter') saveCommitment(parseFloat(h.value)||0); });
+});
+
+/* --- Focus Score Hourly Trend (sparkline SVG, per hour of a day) --- */
+async function renderFocusHourly(containerId, date, titleLabel, bucketMin){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  bucketMin = bucketMin || 15;
+  const data = await api('stats/focus-hourly?date='+date+'&bucket_min='+bucketMin);
+  const pts = data.buckets;
+  const W = 600, H = 90, PAD_L = 20, PAD_R = 8, PAD_T = 6, PAD_B = 16;
+  const iw = W - PAD_L - PAD_R, ih = H - PAD_T - PAD_B;
+  const n = pts.length;
+  const xs = i => PAD_L + (n<=1?0:i/(n-1)*iw);
+  const ys = v => PAD_T + ih - (v/100)*ih;
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const nowBucket = Math.floor(nowMin / bucketMin);
+  const today = now.toISOString().slice(0,10);
+  const isToday = date === today;
+
+  const valid = pts.map((p,i)=>({i,p})).filter(x=>x.p.focus_score!==null);
+  if(!valid.length){
+    el.innerHTML = `<div class="fx-trend-title"><span>${titleLabel||'Fokus-Verlauf'}</span></div><div class="sx-empty">Noch keine Aktivitaet an diesem Tag</div>`;
+    return;
+  }
+  const avg = Math.round(valid.reduce((s,x)=>s+x.p.focus_score,0)/valid.length);
+
+  /* Split valid points into contiguous segments (break on gaps of inactive buckets) */
+  const segments = [];
+  let cur = [];
+  for(let k=0;k<valid.length;k++){
+    const x = valid[k];
+    if(cur.length === 0){ cur.push(x); continue; }
+    const prev = cur[cur.length-1];
+    if(x.i === prev.i + 1){ cur.push(x); }
+    else { segments.push(cur); cur = [x]; }
+  }
+  if(cur.length) segments.push(cur);
+
+  /* Render each segment as its own smoothed path + area */
+  let path='', area='';
+  segments.forEach(seg=>{
+    const P = seg.map(x=>({x:xs(x.i), y:ys(x.p.focus_score)}));
+    if(P.length === 1){
+      /* Single-bucket segment: draw a tiny tick */
+      path += ` M ${P[0].x-1} ${P[0].y} L ${P[0].x+1} ${P[0].y}`;
+      area += ` M ${P[0].x-1} ${H-PAD_B} L ${P[0].x-1} ${P[0].y} L ${P[0].x+1} ${P[0].y} L ${P[0].x+1} ${H-PAD_B} Z`;
+      return;
+    }
+    path += ` M ${P[0].x} ${P[0].y}`;
+    area += ` M ${P[0].x} ${H-PAD_B} L ${P[0].x} ${P[0].y}`;
+    for(let i=0;i<P.length-1;i++){
+      const p0 = P[i-1] || P[i];
+      const p1 = P[i];
+      const p2 = P[i+1];
+      const p3 = P[i+2] || p2;
+      const cp1x = p1.x + (p2.x - p0.x)/6;
+      const cp1y = p1.y + (p2.y - p0.y)/6;
+      const cp2x = p2.x - (p3.x - p1.x)/6;
+      const cp2y = p2.y - (p3.y - p1.y)/6;
+      const s = ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p2.x} ${p2.y}`;
+      path += s; area += s;
+    }
+    area += ` L ${P[P.length-1].x} ${H-PAD_B} Z`;
+  });
+
+  const grid = [50,80].map(v=>`<line class="fx-ax" x1="${PAD_L}" y1="${ys(v)}" x2="${W-PAD_R}" y2="${ys(v)}"/><text class="fx-x-lbl" x="2" y="${ys(v)+3}">${v}</text>`).join('');
+
+  const fmtTime = min => `${String(~~(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}`;
+  /* Only render dots for extrema and current-bucket to keep it clean */
+  const dots = valid.filter((x, idx)=>{
+    const isNow = isToday && x.i === nowBucket;
+    if(isNow) return true;
+    const prev = valid[idx-1];
+    const next = valid[idx+1];
+    /* Treat non-contiguous neighbors as boundaries → segment endpoints always get a dot */
+    const prevContig = prev && prev.i === x.i - 1;
+    const nextContig = next && next.i === x.i + 1;
+    if(!prevContig || !nextContig) return true;
+    const a = prev.p.focus_score, b = x.p.focus_score, c = next.p.focus_score;
+    return (b > a && b > c) || (b < a && b < c);
+  }).map(x=>{
+    const px=xs(x.i), py=ys(x.p.focus_score);
+    const isNow = isToday && x.i === nowBucket;
+    const cls = isNow ? 'fx-dot today' : 'fx-dot';
+    return `<circle class="${cls}" cx="${px}" cy="${py}" r="${isNow?4:2.2}"><title>${fmtTime(x.p.minute)} — ${x.p.focus_score}% (${~~(x.p.work_sec/60)}m Arbeit)</title></circle>`;
   }).join('');
-  const th=(w.this_week_sec/3600).toFixed(1);const df=w.diff_sec;
-  const cls=df>0?'up':df<0?'dn':'eq';const dh=(Math.abs(df)/3600).toFixed(1);
-  $('weekCmp').innerHTML=`<div class="week-total">${th}h diese Woche</div><div class="week-diff ${cls}">${df>=0?'+':'\u2212'}${dh}h vs. letzte Woche</div>`;
+
+  const showHrs = [0,6,12,18,23];
+  const hourToIdx = h => h*60/bucketMin;
+  const labels = showHrs.map(h=>{
+    const i = hourToIdx(h);
+    return `<text class="fx-x-lbl" x="${xs(i)}" y="${H-2}" text-anchor="${h===0?'start':h===23?'end':'middle'}">${String(h).padStart(2,'0')}:00</text>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="fx-trend-title">
+      <span>${titleLabel||'Fokus-Verlauf'} · ${bucketMin}-Min</span>
+      <span class="avg">\u00d8 ${avg}%</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      ${grid}
+      <path class="fx-area" d="${area}"/>
+      <path class="fx-line" d="${path}"/>
+      ${dots}
+      ${labels}
+    </svg>
+  `;
+}
+
+/* --- Focus Score Trend (sparkline SVG) --- */
+async function renderFocusTrend(containerId, days, highlightDate){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  const data = await api('stats/focus-trend?days='+days);
+  const pts = data.days;
+  const W = 600, H = 80, PAD_L = 20, PAD_R = 8, PAD_T = 6, PAD_B = 14;
+  const iw = W - PAD_L - PAD_R, ih = H - PAD_T - PAD_B;
+  const n = pts.length;
+  const xs = i => PAD_L + (n<=1?0:i/(n-1)*iw);
+  const ys = v => PAD_T + ih - (v/100)*ih;
+  const today = new Date().toISOString().slice(0,10);
+
+  const valid = pts.map((p,i)=>({i,p})).filter(x=>x.p.focus_score!==null);
+  if(!valid.length){ el.innerHTML = '<div class="fx-trend-title">Fokus-Verlauf</div><div class="sx-empty">Noch keine Daten</div>'; return; }
+
+  const avg = Math.round(valid.reduce((s,x)=>s+x.p.focus_score,0)/valid.length);
+
+  // Build smooth polyline (connect only valid points)
+  let path = '', area = '';
+  let prevX=null, prevY=null;
+  valid.forEach((x,idx)=>{
+    const px = xs(x.i), py = ys(x.p.focus_score);
+    if(idx===0){ path = `M ${px} ${py}`; area = `M ${px} ${H-PAD_B} L ${px} ${py}`; }
+    else { path += ` L ${px} ${py}`; area += ` L ${px} ${py}`; }
+    prevX = px; prevY = py;
+  });
+  if(prevX!==null) area += ` L ${prevX} ${H-PAD_B} Z`;
+
+  // Gridlines: 50 + 80
+  const grid = [50, 80].map(v=>`<line class="fx-ax" x1="${PAD_L}" y1="${ys(v)}" x2="${W-PAD_R}" y2="${ys(v)}"/><text class="fx-x-lbl" x="2" y="${ys(v)+3}">${v}</text>`).join('');
+
+  // Dots
+  const dots = valid.map(x=>{
+    const px = xs(x.i), py = ys(x.p.focus_score);
+    const isToday = x.p.date === today;
+    const isSel = highlightDate && x.p.date === highlightDate;
+    const cls = isSel ? 'fx-dot selected' : (isToday ? 'fx-dot today' : 'fx-dot');
+    return `<circle class="${cls}" cx="${px}" cy="${py}" r="${isSel||isToday?4:2.5}"><title>${x.p.label} ${x.p.weekday} — ${x.p.focus_score}% (${(x.p.work_sec/3600).toFixed(1)}h)</title></circle>`;
+  }).join('');
+
+  // X-axis labels: first, middle, last
+  const labels = [0, Math.floor(n/2), n-1].map(i=>`<text class="fx-x-lbl" x="${xs(i)}" y="${H-2}" text-anchor="${i===0?'start':i===n-1?'end':'middle'}">${pts[i].label}</text>`).join('');
+
+  el.innerHTML = `
+    <div class="fx-trend-title">
+      <span>Fokus-Verlauf · ${days} Tage</span>
+      <span class="avg">\u00d8 ${avg}%</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      ${grid}
+      <path class="fx-area" d="${area}"/>
+      <path class="fx-line" d="${path}"/>
+      ${dots}
+      ${labels}
+    </svg>
+  `;
+}
+
+/* --- Stats Explorer (Week + Day Drill-Down) --- */
+let sxOffset=0, sxSelectedDate=null, sxToday=new Date().toISOString().slice(0,10);
+
+function sxShift(delta){
+  if(delta>0 && sxOffset>=0) return; /* no future weeks */
+  sxOffset += delta;
+  sxSelectedDate=null;
+  $('sxDrill').classList.remove('show');
+  loadStatsWeek();
+}
+
+async function loadStatsWeek(){
+  const w = await api('stats/week?offset='+sxOffset);
+  $('sxLabel').textContent = w.label;
+  $('sxNext').disabled = sxOffset >= 0;
+
+  const mx = Math.max(...w.days.map(d => (d.focused_sec+d.scattered_sec+d.idle_sec)), 3600);
+  $('sxWeek').innerHTML = w.days.map(d => {
+    const total = d.focused_sec + d.scattered_sec + d.idle_sec;
+    const h = total/3600;
+    const focusedPct = (d.focused_sec/mx*100).toFixed(1);
+    const scatteredPct = (d.scattered_sec/mx*100).toFixed(1);
+    const idlePct = (d.idle_sec/mx*100).toFixed(1);
+    const isToday = d.date === sxToday;
+    const isActive = d.date === sxSelectedDate;
+    const isFuture = d.date > sxToday;
+    const dateLbl = d.date.slice(8,10)+'.'+d.date.slice(5,7);
+    return `<div class="sx-day ${isToday?'today':''} ${isActive?'active':''}"
+              onclick="sxPickDay('${d.date}')"
+              style="${isFuture?'opacity:.3;pointer-events:none':''}">
+              <div class="sx-day-lbl">${d.label}</div>
+              <div class="sx-day-date">${dateLbl}</div>
+              <div class="sx-bar-wrap">
+                <div class="sx-bar" style="height:${Math.max(focusedPct*1+scatteredPct*1+idlePct*1,2)}%">
+                  <div class="sx-bar-f" style="height:${focusedPct}%"></div>
+                  <div class="sx-bar-s" style="height:${scatteredPct}%"></div>
+                  <div class="sx-bar-i" style="height:${idlePct}%"></div>
+                </div>
+              </div>
+              <div class="sx-day-val">${h<0.1?'–':h.toFixed(1)+'h'}</div>
+            </div>`;
+  }).join('');
+
+  /* --- Week Report --- */
+  const totalH = (w.total_work_sec/3600).toFixed(1);
+  const focusedH = (w.total_focused_sec/3600).toFixed(1);
+  const df = w.diff_sec, dh=(Math.abs(df)/3600).toFixed(1);
+  const dcls = df>300?'up':df<-300?'dn':'eq';
+  const dsign = df>=0?'+':'\u2212';
+  const dlabel = w.offset===0 ? 'vs. letzte Woche' : 'vs. Woche davor';
+  const bestLbl = w.best_day ? `${w.best_day.label} (${(w.best_day.work_sec/3600).toFixed(1)}h)` : '—';
+  const topAppsMini = w.top_apps.slice(0,4).map(a=>`
+    <div class="sx-mini-row"><span class="n ${sxClsKey(a.classification)}">${esc(a.name)}</span><span class="v">${Fsx(a.sec)}</span></div>
+  `).join('') || '<div class="sx-empty" style="padding:4px 0;font-size:10px">Noch keine Daten</div>';
+  const topDomsMini = w.top_domains.slice(0,4).map(d=>`
+    <div class="sx-mini-row"><span class="n ${sxClsKey(d.classification)}">${esc(d.name)}</span><span class="v">${Fsx(d.sec)}</span></div>
+  `).join('') || '<div class="sx-empty" style="padding:4px 0;font-size:10px">Noch keine Daten</div>';
+
+  $('sxReport').innerHTML = `
+    <div class="sx-report-top">
+      <div class="sx-report-hero">
+        <div class="sx-report-big">${totalH}<span class="unit">h</span></div>
+        <div class="sx-diff ${dcls}">${dsign}${dh}h ${dlabel}</div>
+      </div>
+      <div style="font-size:11px;color:var(--text2)">${w.active_days} aktive Tag${w.active_days===1?'':'e'}</div>
+    </div>
+    <div class="sx-report-grid">
+      <div class="sx-rk"><div class="sx-rk-v" style="color:var(--green)">${focusedH}h</div><div class="sx-rk-l">Fokussiert</div></div>
+      <div class="sx-rk"><div class="sx-rk-v" style="color:var(--accent2)">${w.avg_focus_score}%</div><div class="sx-rk-l">\u00d8 Score</div></div>
+      <div class="sx-rk"><div class="sx-rk-v">${bestLbl}</div><div class="sx-rk-l">Bester Tag</div></div>
+      <div class="sx-rk"><div class="sx-rk-v">${(w.prev_week_work_sec/3600).toFixed(1)}h</div><div class="sx-rk-l">Vorwoche</div></div>
+    </div>
+    <div class="sx-report-tops">
+      <div class="sx-mini">
+        <div class="sx-mini-title">Top Apps (Woche)</div>
+        ${topAppsMini}
+      </div>
+      <div class="sx-mini">
+        <div class="sx-mini-title">Top Domains (Woche)</div>
+        ${topDomsMini}
+      </div>
+    </div>
+  `;
+
+  /* If a day is selected, reload its drill-down too */
+  if(sxSelectedDate){
+    const match = w.days.find(d=>d.date===sxSelectedDate);
+    if(match) loadStatsDay(sxSelectedDate);
+    else { sxSelectedDate=null; $('sxDrill').classList.remove('show'); }
+  }
+}
+
+async function sxPickDay(date){
+  if(date > sxToday) return;
+  if(sxSelectedDate === date){
+    sxSelectedDate = null;
+    $('sxDrill').classList.remove('show');
+    document.querySelectorAll('.sx-day').forEach(el=>el.classList.remove('active'));
+    return;
+  }
+  sxSelectedDate = date;
+  document.querySelectorAll('.sx-day').forEach(el=>el.classList.remove('active'));
+  await loadStatsDay(date);
+  /* re-render week to mark active */
+  document.querySelectorAll('.sx-day').forEach(el=>{
+    if(el.querySelector('.sx-day-date') && el.querySelector('.sx-day-date').textContent === date.slice(8,10)+'.'+date.slice(5,7)){
+      el.classList.add('active');
+    }
+  });
+}
+
+function sxClsKey(c){return c==='productive'?'prod':c==='distraction'?'dist':'neut'}
+
+async function loadStatsDay(date){
+  const d = await api('stats/day/'+date);
+  const dt = new Date(date+'T00:00:00');
+  const title = dt.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+  const kpis = `
+    <div class="sx-kpi"><div class="sx-kpi-v" style="color:var(--green)">${Fs(d.focused_sec)}</div><div class="sx-kpi-l">Fokus</div></div>
+    <div class="sx-kpi"><div class="sx-kpi-v" style="color:var(--orange)">${Fs(d.scattered_sec)}</div><div class="sx-kpi-l">Unruhig</div></div>
+    <div class="sx-kpi"><div class="sx-kpi-v" style="color:var(--red)">${Fs(d.idle_sec)}</div><div class="sx-kpi-l">Inaktiv</div></div>
+    <div class="sx-kpi"><div class="sx-kpi-v" style="color:var(--accent2)">${d.focus_score}%</div><div class="sx-kpi-l">Score</div></div>
+  `;
+
+  const heatBars = d.hours.map(h=>{
+    if(h.work+h.break===0) return '<div class="tl-col"><div class="tl-e"></div></div>';
+    const wH = Math.max(1, h.work/3600*60);
+    const pH = Math.max(0, h.break/3600*60);
+    const tip = `${String(h.hour).padStart(2,'0')}:00 \u2014 ${~~(h.work/60)}m Arbeit${h.break>0?', '+~~(h.break/60)+'m Pause':''}`;
+    return `<div class="tl-col"><div class="tl-tip">${tip}</div><div class="tl-p" style="height:${pH}px"></div><div class="tl-w" style="height:${wH}px"></div></div>`;
+  }).join('');
+  const heatLbls = Array.from({length:24},(_,i)=>{
+    const show = new Set([0,3,6,9,12,15,18,21]);
+    return `<span class="tl-lbl">${show.has(i)?i+':00':''}</span>`;
+  }).join('');
+
+  const amx = d.top_apps.length ? d.top_apps[0].sec : 1;
+  const apps = d.top_apps.length ? d.top_apps.map(a=>`
+    <div class="sx-row">
+      <div class="sx-row-name ${sxClsKey(a.classification)}" title="${esc(a.name)}">${esc(a.name)}</div>
+      <div class="sx-row-bar"><div style="width:${(a.sec/amx*100).toFixed(1)}%;background:${a.classification==='productive'?'var(--green)':a.classification==='distraction'?'var(--red)':'var(--text3)'}"></div></div>
+      <div class="sx-row-val">${Fsx(a.sec)}</div>
+    </div>`).join('') : '<div class="sx-empty">Noch keine App-Daten. Log startet ab jetzt.</div>';
+
+  const dmx = d.top_domains.length ? d.top_domains[0].sec : 1;
+  const doms = d.top_domains.length ? d.top_domains.map(x=>`
+    <div class="sx-row">
+      <div class="sx-row-name ${sxClsKey(x.classification)}" title="${esc(x.name)}">${esc(x.name)}</div>
+      <div class="sx-row-bar"><div style="width:${(x.sec/dmx*100).toFixed(1)}%;background:${x.classification==='productive'?'var(--green)':x.classification==='distraction'?'var(--red)':'var(--text3)'}"></div></div>
+      <div class="sx-row-val">${Fsx(x.sec)}</div>
+    </div>`).join('') : '<div class="sx-empty">Keine Browser-Aktivitaet geloggt.</div>';
+
+  const sessions = d.sessions.length ? d.sessions.map(s=>{
+    const dur = (s.duration_sec||0) - (s.idle_sec||0);
+    const st = s.start ? new Date(s.start).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '—';
+    const en = s.end ? new Date(s.end).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : 'läuft';
+    const proj = s.project_name ? `<span class="proj-badge" style="background:${s.project_color}22;color:${s.project_color}">${esc(s.project_name)}</span>` : '';
+    return `<div class="sx-row" style="grid-template-columns:auto 1fr auto">
+      <div class="sx-row-val" style="min-width:90px;text-align:left">${st} – ${en}</div>
+      <div class="sx-row-name" style="font-size:11px;color:var(--text2)">${proj}${s.note?esc(s.note):''}</div>
+      <div class="sx-row-val">${Fs(dur)}</div>
+    </div>`;
+  }).join('') : '<div class="sx-empty">Keine Sessions an diesem Tag.</div>';
+
+  $('sxDrill').innerHTML = `
+    <div class="sx-drill-head">
+      <div class="sx-drill-title">${title}</div>
+      <div class="sx-drill-sub">${d.session_count} Session${d.session_count===1?'':'s'} · längste ${Fs(d.longest_focus_sec)}</div>
+    </div>
+    <div class="sx-kpis">${kpis}</div>
+    <div class="sx-sub">Stundenverteilung</div>
+    <div class="tl-chart">${heatBars}</div>
+    <div class="tl-labels">${heatLbls}</div>
+    <div class="fx-trend" id="focusTrendDrill" style="margin-top:14px"></div>
+    <div class="sx-split">
+      <div>
+        <div class="sx-sub">Top Apps</div>
+        <div class="sx-list">${apps}</div>
+      </div>
+      <div>
+        <div class="sx-sub">Top Domains</div>
+        <div class="sx-list">${doms}</div>
+      </div>
+    </div>
+    <div class="sx-sub">Sessions</div>
+    <div class="sx-list">${sessions}</div>
+  `;
+  $('sxDrill').classList.add('show');
+  renderFocusHourly('focusTrendDrill', date, 'Fokus-Verlauf an diesem Tag (stuendlich)');
 }
 
 async function loadStreak(){$('metaStreak').textContent=(await api('streak')).streak}
@@ -671,9 +1495,10 @@ async function loadStreak(){$('metaStreak').textContent=(await api('streak')).st
 async function loadGamification(){
   const g=await api('gamification');
   $('metaLevel').textContent='Lv '+g.level;
+  $('metaLevel').style.color='var(--accent)';
   $('lvlName').textContent='Level '+g.level;$('lvlXp').textContent=g.current_xp+' / '+g.next_level_xp+' XP';
   $('xpFill').style.width=Math.min(100,Math.round(g.current_xp/g.next_level_xp*100))+'%';
-  const rc=g.rating.grade==='S'||g.rating.grade==='A'?'var(--green)':g.rating.grade==='B'?'var(--orange)':g.rating.grade==='D'?'var(--red)':'var(--text3)';
+  const rc=g.rating.grade==='S'?'var(--accent2)':g.rating.grade==='A'?'var(--green)':g.rating.grade==='B'?'var(--orange)':g.rating.grade==='D'?'var(--red)':'var(--text3)';
   $('metaRating').textContent=g.rating.grade;$('metaRating').style.color=rc;
   $('achCount').textContent=g.unlocked_count+'/'+g.total_achievements;
   $('achGrid').innerHTML=g.achievements.map(a=>`<div class="ach ${a.unlocked?'on':''}" title="${a.desc}"><div class="ach-tip">${a.desc}</div><div class="ach-icon">${a.icon}</div><div class="ach-name">${a.name}</div></div>`).join('');
@@ -695,13 +1520,74 @@ async function loadConfig(){
   const c=await api('config');$('cfgGoal').value=c.daily_goal/3600;$('cfgBreak').value=c.break_threshold/60;
   $('cfgIdle').value=c.idle_threshold/60;$('cfgCooldown').value=c.notification_cooldown/60;
   $('cfgPomoFocus').value=c.pomodoro_focus/60;$('cfgPomoBreak').value=c.pomodoro_break/60;
+  if($('cfgDistGrace'))$('cfgDistGrace').value=c.distraction_grace_sec||30;
+  if($('cfgStopDay'))$('cfgStopDay').value=Math.round((c.auto_stop_idle_day||2700)/60);
+  if($('cfgStopNight'))$('cfgStopNight').value=Math.round((c.auto_stop_idle_night||900)/60);
+  if($('cfgAutoCloseTabs'))$('cfgAutoCloseTabs').checked=c.auto_close_tabs!==false;
 }
 async function saveConfig(){
   await api('config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     daily_goal:+$('cfgGoal').value*3600,break_threshold:+$('cfgBreak').value*60,
     idle_threshold:+$('cfgIdle').value*60,notification_cooldown:+$('cfgCooldown').value*60,
-    pomodoro_focus:+$('cfgPomoFocus').value*60,pomodoro_break:+$('cfgPomoBreak').value*60
+    pomodoro_focus:+$('cfgPomoFocus').value*60,pomodoro_break:+$('cfgPomoBreak').value*60,
+    distraction_grace_sec:+($('cfgDistGrace')?.value||30),
+    auto_stop_idle_day:+($('cfgStopDay')?.value||45)*60,
+    auto_stop_idle_night:+($('cfgStopNight')?.value||15)*60,
+    auto_close_tabs:$('cfgAutoCloseTabs')?.checked??true
   })});
+}
+async function loadActivityConfig(){
+  const c=await api('activity-config');
+  $('actBlockDoms').value=c.blocklist_domains||'';
+  $('actBlockApps').value=c.blocklist_apps||'';
+  $('actProdDoms').value=c.productive_domains||'';
+  $('actProdApps').value=c.productive_apps||'';
+}
+async function saveActivityConfig(){
+  await api('activity-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    blocklist_domains:$('actBlockDoms').value,
+    blocklist_apps:$('actBlockApps').value,
+    productive_domains:$('actProdDoms').value,
+    productive_apps:$('actProdApps').value
+  })});
+}
+async function loadAiConfig(){
+  try{
+    const c=await api('ai-config');
+    $('aiProvider').value=c.ai_provider||'auto';
+    const mark=(el,has,fromEnv)=>{
+      if(!has){ el.textContent=''; return; }
+      el.textContent=fromEnv?'• gesetzt (ENV)':'• gespeichert';
+      el.style.color='var(--accent)';
+    };
+    mark($('aiGroqStatus'),c.has_groq_key,c.groq_from_env);
+    mark($('aiAnthStatus'),c.has_anthropic_key,c.anthropic_from_env);
+  }catch(e){}
+}
+async function saveAiConfig(){
+  const msg=$('aiConfigMsg');
+  const payload={ai_provider:$('aiProvider').value};
+  const g=$('aiGroqKey').value.trim();
+  const a=$('aiAnthKey').value.trim();
+  if(g) payload.groq_api_key=g;
+  if(a) payload.anthropic_api_key=a;
+  try{
+    const r=await fetch('/api/ai-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!r.ok){ const e=await r.json().catch(()=>({})); msg.textContent='Fehler: '+(e.error||r.status); msg.style.color='#f87171'; return; }
+    msg.textContent='Gespeichert.'; msg.style.color='var(--accent)';
+    $('aiGroqKey').value=''; $('aiAnthKey').value='';
+    loadAiConfig();
+    setTimeout(()=>{msg.textContent='';},2500);
+  }catch(e){ msg.textContent='Fehler: '+e.message; msg.style.color='#f87171'; }
+}
+function updateActivityBadge(st){
+  const el=$('actCurrent');if(!el)return;
+  const cls=st.current_classification||'neutral';
+  const color=cls==='productive'?'#4ade80':cls==='distraction'?'#f87171':'var(--text2)';
+  const label={productive:'✅ produktiv',distraction:'🚫 ablenkend',neutral:'— neutral'}[cls]||'—';
+  const app=st.current_app||'(unbekannt)';
+  const url=st.current_url?` · ${st.current_url.slice(0,60)}`:'';
+  el.innerHTML=`<span style="color:${color}">${label}</span> · <b>${app}</b>${url}`;
 }
 
 // --- Projects ---
@@ -978,21 +1864,150 @@ async function saveAllAssignments(){
   loadProjects();loadToday();loadGoals();
 }
 
-function refresh(){syncStatus();loadToday();loadWeek();loadStreak();loadGamification();loadHistory();loadProjects().then(()=>{loadTodos();loadGoals();loadMotivation()})}
+// ============================================================
+// AI Day Planner JS
+// ============================================================
+let _planCarryoverCandidates = [];
+
+async function loadTodayPlan() {
+  try {
+    const data = await api('plan/today');
+    const el = $('plannerContent');
+    if (!data.plan) {
+      _planCarryoverCandidates = data.carryover_candidates || [];
+      const cc = _planCarryoverCandidates;
+      el.innerHTML = '<div style="color:var(--text2);font-size:12px;text-align:center;padding:16px">Noch kein Plan fuer heute.' +
+        (cc.length ? '<div style="margin-top:8px;color:var(--orange);font-size:11px">'+cc.length+' offene Todos von gestern verfuegbar.</div>' : '') + '</div>';
+      return;
+    }
+    renderPlan(data.plan, data.todos || []);
+  } catch(e) {}
+}
+
+function renderPlan(plan, todos) {
+  const el = $('plannerContent');
+  const deepMin = plan.total_deep_work_min || 0;
+  const adminMin = plan.total_admin_min || 0;
+  const statsHtml = '<div class="plan-stats"><span>Deep Work: '+Math.floor(deepMin/60)+'h '+deepMin%60+'m</span><span>Admin: '+Math.floor(adminMin/60)+'h '+adminMin%60+'m</span><span>'+(todos.filter(t=>t.done).length)+'/'+todos.length+' erledigt</span></div>';
+  const summaryHtml = plan.summary ? '<div class="plan-summary">'+esc(plan.summary)+'</div>' : '';
+  const blocksHtml = (plan.blocks || []).map(function(b) {
+    const todo = todos.find(function(t){return t.planned_start_time===b.start_time&&t.title===b.title});
+    const isDone = todo ? todo.done : false;
+    const todoId = todo ? todo.id : null;
+    const endMin = timeToMin(b.start_time) + (b.duration_min || 0);
+    const endTime = minToTime(endMin);
+    const carryBadge = b.is_carry_over ? '<span class="carry-badge">gestern</span>' : '';
+    const checkHtml = (b.category !== 'break' && todoId)
+      ? '<input type="checkbox" class="plan-check" '+(isDone?'checked':'')+' onchange="togglePlanTodo('+todoId+', this.checked)">'
+      : '<span style="width:16px;flex-shrink:0"></span>';
+    return '<div class="plan-block '+(b.category||'')+'" style="'+(isDone?'opacity:.5':'')+'">'
+      +'<div class="plan-block-head">'+checkHtml
+      +'<span class="plan-time">'+b.start_time+' – '+endTime+'</span>'
+      +'<span class="plan-title">'+esc(b.title)+carryBadge+'</span>'
+      +'<span class="plan-priority '+(b.priority||'')+'">'+( b.priority||'')+'</span>'
+      +'<span class="plan-dur">'+(b.duration_min||0)+'m</span>'
+      +'</div>'+(b.description?'<div class="plan-desc">'+esc(b.description)+'</div>':'')+'</div>';
+  }).join('');
+  el.innerHTML = summaryHtml + statsHtml + (blocksHtml || '<div style="color:var(--text2);font-size:12px">Keine Bloecke</div>');
+}
+
+function timeToMin(t) {
+  if (!t) return 0;
+  const parts = t.split(':');
+  return parseInt(parts[0]||0)*60 + parseInt(parts[1]||0);
+}
+function minToTime(m) {
+  const h = Math.floor(m/60)%24, min = m%60;
+  return (h<10?'0':'')+h+':'+(min<10?'0':'')+min;
+}
+
+async function togglePlanTodo(id, done) {
+  await fetch('/api/todos/'+id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({done: done?1:0})});
+  loadTodayPlan();
+  loadTodos();
+}
+
+async function openPlannerModal() {
+  if (!_planCarryoverCandidates.length) {
+    try { _planCarryoverCandidates = (await api('plan/carryover')) || []; } catch(e) { _planCarryoverCandidates = []; }
+  }
+  const cc = _planCarryoverCandidates;
+  const ccContainer = $('plannerCarryover');
+  const ccList = $('plannerCarryoverList');
+  if (cc.length) {
+    ccList.innerHTML = cc.map(function(t){return '<div style="font-size:11px;color:var(--text);padding:2px 0">• '+esc(t.title)+'</div>'}).join('');
+    ccContainer.style.display = 'block';
+  } else {
+    ccContainer.style.display = 'none';
+  }
+  $('plannerInput').value = '';
+  $('plannerModal').classList.add('show');
+  setTimeout(function(){$('plannerInput').focus()}, 100);
+}
+
+function closePlannerModal() {
+  $('plannerModal').classList.remove('show');
+}
+
+async function generatePlan() {
+  const raw = ($('plannerInput').value || '').trim();
+  if (!raw) { alert('Bitte zuerst Aufgaben eingeben.'); return; }
+  const workHours = parseInt($('planWorkHours').value) || 6;
+  const btn = $('plannerGenerateBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="plan-spinner"></span>Plan wird erstellt...';
+  try {
+    const res = await fetch('/api/plan/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({raw_todos: raw, work_hours_target: workHours})
+    });
+    const data = await res.json();
+    closePlannerModal();
+    if (data.error && !data.plan) {
+      $('plannerContent').innerHTML = '<div style="color:var(--red);font-size:12px;padding:12px">'+esc(data.error)+'</div>';
+    } else {
+      loadTodayPlan();
+      loadTodos();
+    }
+  } catch(e) {
+    $('plannerContent').innerHTML = '<div style="color:var(--red);font-size:12px;padding:12px">Fehler: '+esc(e.message)+'</div>';
+    closePlannerModal();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Plan generieren';
+  }
+}
+
+// Load plan on startup
+loadTodayPlan();
+
+
+function refresh(){syncStatus();loadToday();loadStatsWeek();loadStreak();loadGamification();loadHistory();loadCommitment();loadProjects().then(()=>{loadTodos();loadGoals();loadMotivation()})}
 document.addEventListener('keydown',e=>{
-  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
-  if(e.code==='Space'){e.preventDefault();isActive?requestStop():startSession()}
-  if(e.code==='Escape'){document.querySelectorAll('.modal-overlay.show').forEach(m=>m.classList.remove('show'))}
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.metaKey||e.ctrlKey)return;
+  if(e.code==='Escape'){document.querySelectorAll('.modal-overlay.show').forEach(m=>m.classList.remove('show'));return}
+  const anyModalOpen=!!document.querySelector('.modal-overlay.show');if(anyModalOpen)return;
+  if(e.code==='Space'){
+    e.preventDefault();
+    if(isActive){requestStop()}else if(selectedProjectId!=null){startSession()}else{
+      // No project selected — flash the hint
+      const h=$('startHint');h.style.display='block';h.style.color='var(--orange)';
+      setTimeout(()=>{h.style.color='';},1200);
+    }
+  }
+  if(e.code==='KeyP'&&isActive){e.preventDefault();togglePause()}
+  if(e.code==='KeyR'&&!isActive){e.preventDefault();refresh()}
 });
 document.addEventListener('click',e=>{if(!e.target.closest('#focusCard'))$('focusBreakdown').classList.remove('show')});
 
 // Restore last selected project
 try{const saved=localStorage.getItem('ft_project');if(saved)selectedProjectId=+saved||null}catch(e){}
 
-loadConfig();refresh();
+loadConfig();loadActivityConfig();loadAiConfig();refresh();
 setInterval(tick,1000);
 setInterval(()=>{syncStatus();loadToday()},3000);
-setInterval(()=>{loadWeek();loadStreak();loadGamification();loadHistory();loadProjects().then(()=>{loadGoals();loadMotivation()})},15000);
+setInterval(()=>{loadStatsWeek();loadStreak();loadGamification();loadHistory();loadCommitment();loadProjects().then(()=>{loadGoals();loadMotivation()})},15000);
 </script>
 </body>
 </html>

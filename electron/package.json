@@ -1,0 +1,47 @@
+{
+  "name": "focustracker",
+  "version": "1.0.0",
+  "description": "FocusTracker — local Electron shell",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac --dir",
+    "dist": "electron-builder --mac"
+  },
+  "author": "Marius",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "de.kissenkoetter.focustracker",
+    "productName": "FocusTracker",
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../",
+        "to": "backend",
+        "filter": [
+          "app.py",
+          "ai_planner.py",
+          "menubar.py",
+          "requirements.txt",
+          "templates/**/*",
+          "icons/**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        { "target": "dir", "arch": ["arm64", "x64"] }
+      ],
+      "icon": "assets/icon.icns"
+    }
+  }
+}

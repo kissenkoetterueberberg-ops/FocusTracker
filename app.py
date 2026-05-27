@@ -4,6 +4,7 @@
 import csv
 import io
 import os
+import shlex
 import sqlite3
 import subprocess
 import threading
@@ -12,6 +13,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, render_template, request
+
+try:
+    from ai_planner import generate_day_plan as _generate_day_plan
+    _PLANNER_AVAILABLE = True
+except ImportError:
+    _PLANNER_AVAILABLE = False
+    def _generate_day_plan(*a, **kw):
+        return {"error": "ai_planner module not found", "blocks": []}
 
 app = Flask(__name__)
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
@@ -30,11 +39,30 @@ DEFAULT_CONFIG = {
     "daily_goal": 21600,          # 6h = 21600 sec
     "pomodoro_focus": 1500,       # 25 min
     "pomodoro_break": 300,        # 5 min
+    # --- Activity-Detection ---
+    "distraction_grace_sec": 120,  # distraction app >2min → auto-pause (kurze Checks toleriert)
+    "productive_grace_sec": 60,    # productive app >60s (tracker off) → start-reminder
+    "start_reminder_cooldown": 900, # 15 min between start-reminders
+    "auto_stop_idle_day": 2700,    # 45 min idle tagsüber → auto-stop
+    "auto_stop_idle_night": 900,   # 15 min idle 22–06 Uhr → auto-stop
+    "night_start_hour": 22,
+    "night_end_hour": 6,
+    "auto_close_tabs": True,
+}
+
+# List-type config: stored as comma-separated TEXT
+DEFAULT_LIST_CONFIG = {
+    "blocklist_domains": "youtube.com,instagram.com,tiktok.com,reddit.com,x.com,twitter.com,facebook.com,9gag.com",
+    "blocklist_apps": "WhatsApp,Messages,Telegram,Discord,Signal",
+    "productive_domains": "localhost,127.0.0.1,shopify.com,myshopify.com,gethappyhours.de,vercel.com,github.com,gitlab.com,claude.ai,anthropic.com,chatgpt.com,openai.com,perplexity.ai,notion.so,figma.com,stripe.com,cursor.com,cursor.sh,clarity.microsoft.com,klaviyo.com,mail.google.com,docs.google.com,drive.google.com,calendar.google.com,sheets.google.com,business.facebook.com,ads.facebook.com,adsmanager.facebook.com,analytics.google.com,search.google.com,n8n.io,linear.app,slack.com,developer.mozilla.org,react.dev,nextjs.org,tailwindcss.com,docker.com,supabase.com,postgresql.org,sqlite.org",
+    "productive_apps": "Code,Cursor,Visual Studio Code,iTerm2,Terminal,Warp,Xcode,Ghostty,Claude,ChatGPT,Docker,Docker Desktop,Postico,TablePlus,Postman,Insomnia,Slack,Linear,Notion,Figma",
 }
 
 config = dict(DEFAULT_CONFIG)
-IDLE_CHECK_INTERVAL = 10
+list_config = dict(DEFAULT_LIST_CONFIG)
+IDLE_CHECK_INTERVAL = 5  # war 10, jetzt schneller für Activity-Detection
 FOCUS_MIN_SEGMENT = 600  # Arbeits-Stretches >= 10 min gelten als fokussiert
+BREAK_GLUE_SEC = 90      # Breaks <= 90s werden ignoriert (Segmente davor/danach verschmelzen)
 
 # --- State ---
 tracker_state = {
@@ -52,7 +80,19 @@ tracker_state = {
     "pomodoro_count": 0,
     "pomodoro_notified": False,
     "active_project_id": None,
+    "source": "live",              # "live" | "offline" — offline skips idle/activity checks
+    # Activity-Detection
+    "current_app": None,
+    "current_url": None,
+    "current_classification": "neutral",  # productive | distraction | neutral
+    "classification_since": None,          # when current classification started
+    "last_productive_ts": None,            # last time we saw productive activity
+    "last_start_reminder": 0,              # unix ts — cooldown for start-reminder
+    "paused_by_distraction": False,        # current pause is because of distraction
 }
+
+# Lock protecting all reads/writes of tracker_state across Flask threads + idle_monitor
+_state_lock = threading.Lock()
 
 
 def init_db():
@@ -97,7 +137,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
-            color TEXT DEFAULT '#6c5ce7',
+            color TEXT DEFAULT '#14b8a6',
             goal_hours INTEGER DEFAULT 0,
             created_at TEXT NOT NULL,
             archived INTEGER DEFAULT 0
@@ -116,6 +156,29 @@ def init_db():
         )
     """)
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS commitments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            period_type TEXT NOT NULL,
+            period_key TEXT NOT NULL,
+            target_sec INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(period_type, period_key)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT NOT NULL,
+            app TEXT,
+            domain TEXT,
+            classification TEXT,
+            duration_sec INTEGER NOT NULL,
+            session_id INTEGER,
+            in_break INTEGER DEFAULT 0
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_activity_ts ON activity_log(ts)")
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS goals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -129,10 +192,36 @@ def init_db():
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
         )
     """)
+    # --- AI Planner tables (additive migration) ---
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS day_plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL UNIQUE,
+            raw_input TEXT,
+            plan_json TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_day_plans_date ON day_plans(date)")
+
+    # Add new columns to todos if missing
+    todo_cols = [r[1] for r in conn.execute("PRAGMA table_info(todos)").fetchall()]
+    if "planned_start_time" not in todo_cols:
+        conn.execute("ALTER TABLE todos ADD COLUMN planned_start_time TEXT")
+    if "planned_duration_min" not in todo_cols:
+        conn.execute("ALTER TABLE todos ADD COLUMN planned_duration_min INTEGER")
+    if "day_plan_id" not in todo_cols:
+        conn.execute("ALTER TABLE todos ADD COLUMN day_plan_id INTEGER REFERENCES day_plans(id)")
+    if "carried_from_date" not in todo_cols:
+        conn.execute("ALTER TABLE todos ADD COLUMN carried_from_date TEXT")
+
     # Add project_id column to sessions if missing
     cols = [r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
     if "project_id" not in cols:
         conn.execute("ALTER TABLE sessions ADD COLUMN project_id INTEGER REFERENCES projects(id)")
+    if "source" not in cols:
+        conn.execute("ALTER TABLE sessions ADD COLUMN source TEXT DEFAULT 'live'")
+        conn.execute("UPDATE sessions SET source = 'live' WHERE source IS NULL")
 
     # Seed default goals if empty
     gcount = conn.execute("SELECT COUNT(*) FROM goals").fetchone()[0]
@@ -148,8 +237,14 @@ def init_db():
 
     # Load saved config
     for row in conn.execute("SELECT key, value FROM config").fetchall():
-        if row[0] in config:
-            config[row[0]] = int(row[1])
+        k, v = row[0], row[1]
+        if k in config:
+            try:
+                config[k] = int(v)
+            except (TypeError, ValueError):
+                pass
+        elif k in list_config:
+            list_config[k] = v
     conn.commit()
     conn.close()
 
@@ -158,8 +253,76 @@ def save_config_to_db():
     conn = sqlite3.connect(DB_PATH)
     for k, v in config.items():
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (k, str(v)))
+    for k, v in list_config.items():
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (k, v))
     conn.commit()
     conn.close()
+
+
+def _parse_list(s):
+    return [x.strip().lower() for x in (s or "").split(",") if x.strip()]
+
+
+def _extract_domain(url):
+    """Return the registrable host from a URL (strips scheme, path, www.)."""
+    if not url:
+        return None
+    u = url.strip().lower()
+    if "://" in u:
+        u = u.split("://", 1)[1]
+    u = u.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+    if u.startswith("www."):
+        u = u[4:]
+    return u or None
+
+
+def log_activity(app_name, url, classification, duration_sec, session_id, in_break):
+    """Persist an activity sample. Coalesce with the previous row if same app/domain
+    to keep the table small (one row per continuous context)."""
+    if duration_sec <= 0:
+        return
+    domain = _extract_domain(url)
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.execute(
+            "SELECT id, ts, duration_sec, app, domain, classification, session_id, in_break "
+            "FROM activity_log ORDER BY id DESC LIMIT 1"
+        )
+        prev = cur.fetchone()
+        now_iso = datetime.now().isoformat()
+        in_break_i = 1 if in_break else 0
+        if prev:
+            prev_id, prev_ts, prev_dur, prev_app, prev_dom, prev_cls, prev_sid, prev_ib = prev
+            same = (
+                (prev_app or None) == (app_name or None)
+                and (prev_dom or None) == (domain or None)
+                and prev_cls == classification
+                and (prev_sid or 0) == (session_id or 0)
+                and (prev_ib or 0) == in_break_i
+            )
+            if same:
+                # Only coalesce if the previous row is recent (<= 2x sample interval)
+                try:
+                    gap = (datetime.now() - datetime.fromisoformat(prev_ts)).total_seconds()
+                except Exception:
+                    gap = 9999
+                if gap <= duration_sec + IDLE_CHECK_INTERVAL * 2:
+                    conn.execute(
+                        "UPDATE activity_log SET duration_sec = duration_sec + ?, ts = ? WHERE id = ?",
+                        (duration_sec, now_iso, prev_id)
+                    )
+                    conn.commit()
+                    conn.close()
+                    return
+        conn.execute(
+            "INSERT INTO activity_log (ts, app, domain, classification, duration_sec, session_id, in_break) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (now_iso, app_name, domain, classification, duration_sec, session_id, in_break_i)
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 
 def get_idle_time_sec():
@@ -175,6 +338,75 @@ def get_idle_time_sec():
     except Exception:
         pass
     return 0.0
+
+
+_BROWSER_URL_SCRIPTS = {
+    "Google Chrome": 'tell application "Google Chrome" to if it is running then return URL of active tab of front window',
+    "Chromium": 'tell application "Chromium" to if it is running then return URL of active tab of front window',
+    "Brave Browser": 'tell application "Brave Browser" to if it is running then return URL of active tab of front window',
+    "Microsoft Edge": 'tell application "Microsoft Edge" to if it is running then return URL of active tab of front window',
+    "Arc": 'tell application "Arc" to if it is running then return URL of active tab of front window',
+    "Dia": 'tell application "Dia" to if it is running then return URL of active tab of front window',
+    "Safari": 'tell application "Safari" to if it is running then return URL of front document',
+    "Safari Technology Preview": 'tell application "Safari Technology Preview" to if it is running then return URL of front document',
+}
+
+
+def _run_osascript(script, timeout=2):
+    try:
+        res = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True, timeout=timeout
+        )
+        out = (res.stdout or "").strip()
+        return out if res.returncode == 0 and out else None
+    except Exception:
+        return None
+
+
+def get_active_context():
+    """Return (app_name, url_or_None). URL only if frontmost is a supported browser."""
+    app_name = _run_osascript(
+        'tell application "System Events" to get name of (first process whose frontmost is true)'
+    )
+    url = None
+    if app_name in _BROWSER_URL_SCRIPTS:
+        url = _run_osascript(_BROWSER_URL_SCRIPTS[app_name])
+    return app_name, url
+
+
+def _domain_matches(url, domain):
+    if not url or not domain:
+        return False
+    url_l = url.lower()
+    return domain in url_l  # substring match is fine — domain already includes tld
+
+
+def classify_activity(app_name, url):
+    """Return 'productive' | 'distraction' | 'neutral'."""
+    if not app_name:
+        return "neutral"
+    app_l = app_name.lower()
+    block_apps = _parse_list(list_config.get("blocklist_apps", ""))
+    prod_apps = _parse_list(list_config.get("productive_apps", ""))
+    block_doms = _parse_list(list_config.get("blocklist_domains", ""))
+    prod_doms = _parse_list(list_config.get("productive_domains", ""))
+
+    # URL signals win over app signals (browser can be either)
+    if url:
+        for d in block_doms:
+            if _domain_matches(url, d):
+                return "distraction"
+        for d in prod_doms:
+            if _domain_matches(url, d):
+                return "productive"
+        return "neutral"  # unknown URL — don't guess
+
+    if app_l in block_apps or any(a.lower() == app_l for a in block_apps):
+        return "distraction"
+    if app_l in prod_apps or any(a.lower() == app_l for a in prod_apps):
+        return "productive"
+    return "neutral"
 
 
 def set_dnd(enabled):
@@ -194,12 +426,57 @@ def set_dnd(enabled):
 
 def send_notification(title, message, sound="Funk"):
     try:
-        subprocess.run([
-            "osascript", "-e",
-            f'display notification "{message}" with title "{title}" sound name "{sound}"'
-        ], timeout=5)
+        # Escape backslashes and double-quotes to prevent osascript injection
+        def _esc(s):
+            return str(s).replace("\\", "\\\\").replace('"', '\\"')
+        script = f'display notification "{_esc(message)}" with title "{_esc(title)}" sound name "{_esc(sound)}"'
+        subprocess.run(["osascript", "-e", script], timeout=5, capture_output=True)
     except Exception:
         pass
+
+
+def close_blocklist_tabs():
+    """Close all browser tabs matching blocklist domains via AppleScript."""
+    block_doms = _parse_list(list_config.get("blocklist_domains", ""))
+    if not block_doms:
+        return
+    cond = " or ".join(f'(URL of t) contains "{d}"' for d in block_doms)
+    chrome_like = ["Google Chrome", "Chromium", "Brave Browser", "Microsoft Edge", "Arc", "Dia"]
+    for browser in chrome_like:
+        script = f'''
+tell application "System Events"
+    if exists (process "{browser}") then
+        tell application "{browser}"
+            repeat with w in windows
+                set tabsToClose to {{}}
+                repeat with t in tabs of w
+                    if {cond} then set end of tabsToClose to t
+                end repeat
+                repeat with t in tabsToClose
+                    close t
+                end repeat
+            end repeat
+        end tell
+    end if
+end tell'''
+        _run_osascript(script, timeout=5)
+    safari_cond = " or ".join(f'(URL of t) contains "{d}"' for d in block_doms)
+    _run_osascript(f'''
+tell application "System Events"
+    if exists (process "Safari") then
+        tell application "Safari"
+            repeat with w in windows
+                set tabsToClose to {{}}
+                repeat with t in tabs of w
+                    if {safari_cond} then set end of tabsToClose to t
+                end repeat
+                repeat with t in tabsToClose
+                    close t
+                end repeat
+            end repeat
+        end tell
+    end if
+end tell''', timeout=5)
 
 
 def _get_active_session_id(conn):
@@ -209,152 +486,373 @@ def _get_active_session_id(conn):
     return row[0] if row else None
 
 
-def _get_today_work_sec():
-    """Calculate today's net work seconds for goal tracking."""
+def _get_today_work_sec(live_only: bool = False):
+    """Calculate today's net work seconds (excluding idle/breaks) for goal tracking.
+
+    live_only=True excludes offline/manual sessions — use for focus-score math.
+    Default (False) includes all sources — use for daily-goal progress.
+    """
     today = datetime.now().strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_PATH)
-    row = conn.execute(
-        "SELECT COALESCE(SUM(duration_sec - idle_sec), 0) FROM sessions WHERE start_time LIKE ? AND end_time IS NOT NULL",
-        (f"{today}%",)
-    ).fetchone()
+    if live_only:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(duration_sec - idle_sec), 0) FROM sessions "
+            "WHERE start_time LIKE ? AND end_time IS NOT NULL AND COALESCE(source,'live')='live'",
+            (f"{today}%",)
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(duration_sec - idle_sec), 0) FROM sessions WHERE start_time LIKE ? AND end_time IS NOT NULL",
+            (f"{today}%",)
+        ).fetchone()
     total = row[0] if row else 0
-    # Add current active session
+    # Add current active session net of already-booked idle
     if tracker_state["active"] and tracker_state["session_start"]:
         start = datetime.fromisoformat(tracker_state["session_start"])
         if start.strftime("%Y-%m-%d") == today:
-            total += int((datetime.now() - start).total_seconds())
+            elapsed = int((datetime.now() - start).total_seconds())
+            active_id = _get_active_session_id(conn)
+            active_idle = 0
+            active_source = "live"
+            if active_id:
+                r = conn.execute(
+                    "SELECT COALESCE(idle_sec, 0), COALESCE(source,'live') FROM sessions WHERE id = ?",
+                    (active_id,)
+                ).fetchone()
+                if r:
+                    active_idle = r[0]
+                    active_source = r[1]
+            if not live_only or active_source == "live":
+                total += max(0, elapsed - active_idle)
     conn.close()
     return total
 
 
+def _is_night_hour(h):
+    ns, ne = config["night_start_hour"], config["night_end_hour"]
+    # Night wraps midnight (e.g. 22–06): ns > ne
+    if ns > ne:
+        return h >= ns or h < ne
+    # Night within same day (unusual config)
+    return ns <= h < ne
+
+
+def _auto_stop_session(reason, last_activity_dt):
+    """Close the active session using last_activity_dt as end_time (not now)."""
+    conn = sqlite3.connect(DB_PATH)
+    session_id = _get_active_session_id(conn)
+    if not session_id:
+        conn.close()
+        return
+    start = datetime.fromisoformat(tracker_state["session_start"])
+    end = max(start, last_activity_dt)
+    duration = int((end - start).total_seconds())
+    note = f"[auto-stop: {reason}]"
+    conn.execute(
+        "UPDATE sessions SET end_time = ?, duration_sec = ?, note = COALESCE(NULLIF(note,''), ?) WHERE id = ?",
+        (end.isoformat(), duration, note, session_id)
+    )
+    # Close any open break at last_activity too (or at now if break started after)
+    conn.execute(
+        "UPDATE breaks SET end_time = ?, duration_sec = MAX(0, CAST((julianday(?) - julianday(start_time)) * 86400 AS INTEGER)) WHERE end_time IS NULL AND session_id = ?",
+        (end.isoformat(), end.isoformat(), session_id)
+    )
+    conn.commit()
+    conn.close()
+    tracker_state["active"] = False
+    tracker_state["session_start"] = None
+    tracker_state["paused_by_idle"] = False
+    tracker_state["paused_by_distraction"] = False
+    tracker_state["on_break"] = False
+    tracker_state["break_start"] = None
+    tracker_state["pomodoro_phase"] = None
+    tracker_state["pomodoro_phase_start"] = None
+    tracker_state["active_project_id"] = None
+    set_dnd(False)
+    send_notification(
+        "Session automatisch beendet",
+        f"{reason}. Ende: {end.strftime('%H:%M')} ({duration // 3600}h {(duration % 3600) // 60}m).",
+        "Submarine"
+    )
+
+
 def idle_monitor():
-    """Background thread: idle detection, auto-breaks, pomodoro, escalating reminders."""
+    """Background thread: idle/activity detection, auto-breaks, pomodoro, reminders, auto-stop.
+
+    Expensive I/O (idle check, osascript, notifications) runs outside _state_lock.
+    All tracker_state reads/writes are protected by _state_lock to avoid races
+    between this thread and Flask request handlers.
+    """
     goal_notified = False
 
     while True:
         time.sleep(IDLE_CHECK_INTERVAL)
 
-        # --- Daily goal check ---
-        if tracker_state["active"] and not goal_notified:
-            work = _get_today_work_sec()
-            if work >= config["daily_goal"]:
-                hours = config["daily_goal"] // 3600
-                send_notification(
-                    "Tagesziel erreicht!",
-                    f"Du hast heute {hours}h produktiv gearbeitet. Stark!",
-                    "Glass"
-                )
-                goal_notified = True
-
-        # Reset goal notification at midnight
-        if datetime.now().hour == 0 and datetime.now().minute == 0:
-            goal_notified = False
-
-        if not tracker_state["active"]:
-            continue
-
+        # --- Collect external data outside the lock (no state mutation) ---
         idle_sec = get_idle_time_sec()
         now = time.time()
+        now_dt = datetime.now()
+        app_name, url = get_active_context()
+
+        # Derive classification purely from external data
+        classification = classify_activity(app_name, url)
+        if idle_sec >= 60:
+            classification = "neutral"
+
+        # --- Update context fields + snapshot mutable state ---
+        with _state_lock:
+            prev_cls = tracker_state["current_classification"]
+            tracker_state["current_app"] = app_name
+            tracker_state["current_url"] = url
+            if classification != prev_cls:
+                tracker_state["current_classification"] = classification
+                tracker_state["classification_since"] = now_dt.isoformat()
+            if classification == "productive":
+                tracker_state["last_productive_ts"] = now_dt.isoformat()
+
+            cls_since_str = tracker_state["classification_since"]
+            is_active = tracker_state["active"]
+            on_break_now = tracker_state["on_break"]
+            current_source = tracker_state["source"]
+
+        # Compute classification duration (no lock needed — only uses local copy)
+        classification_dur = 0
+        if cls_since_str:
+            try:
+                classification_dur = int(
+                    (now_dt - datetime.fromisoformat(cls_since_str)).total_seconds()
+                )
+            except Exception:
+                classification_dur = 0
+
+        # --- Daily goal check (under lock for state read/write) ---
+        with _state_lock:
+            if is_active and not goal_notified:
+                work = _get_today_work_sec()
+                if work >= config["daily_goal"]:
+                    hours = config["daily_goal"] // 3600
+                    send_notification(
+                        "Tagesziel erreicht!",
+                        f"Du hast heute {hours}h produktiv gearbeitet. Stark!",
+                        "Glass"
+                    )
+                    goal_notified = True
+            if now_dt.hour == 0 and now_dt.minute == 0:
+                goal_notified = False
+
+        # --- Offline sessions: skip all computer-based checks ---
+        if is_active and current_source == "offline":
+            continue
+
+        # --- Persist activity sample (only while session active, for stats) ---
+        if is_active and app_name:
+            try:
+                conn_l = sqlite3.connect(DB_PATH)
+                sid = _get_active_session_id(conn_l)
+                conn_l.close()
+                with _state_lock:
+                    in_brk = tracker_state["on_break"]
+                log_activity(app_name, url, classification, IDLE_CHECK_INTERVAL, sid, in_brk)
+            except Exception:
+                pass
+
+        # --- Start-Reminder when tracker is off ---
+        if not is_active:
+            with _state_lock:
+                last_remind = tracker_state["last_start_reminder"]
+            if (classification == "productive"
+                    and classification_dur >= config["productive_grace_sec"]
+                    and now - last_remind >= config["start_reminder_cooldown"]):
+                app_hint = app_name or "Arbeits-App"
+                send_notification(
+                    "Tracker ist aus",
+                    f"Du arbeitest in {app_hint} — Session starten?",
+                    "Ping"
+                )
+                with _state_lock:
+                    tracker_state["last_start_reminder"] = now
+            continue
+
+        # --- Auto-Stop: session crossed midnight (HIDIdleTime resets on sleep, so idle alone is unreliable) ---
+        with _state_lock:
+            _s_start = tracker_state["session_start"]
+        if _s_start:
+            try:
+                _s_start_dt = datetime.fromisoformat(_s_start)
+                if _s_start_dt.date() < now_dt.date():
+                    _midnight = datetime.combine(now_dt.date(), datetime.min.time())
+                    with _state_lock:
+                        if tracker_state["active"]:
+                            _auto_stop_session("Mitternacht ueberschritten", _midnight)
+                    continue
+            except Exception:
+                pass
+
+        # --- Auto-Stop: idle too long (adaptive day/night threshold) ---
+        night = _is_night_hour(now_dt.hour)
+        stop_threshold = config["auto_stop_idle_night"] if night else config["auto_stop_idle_day"]
+        if idle_sec >= stop_threshold:
+            last_activity = now_dt - timedelta(seconds=idle_sec)
+            reason = f"{int(stop_threshold // 60)} Min inaktiv" + (" (Nachts)" if night else "")
+            with _state_lock:
+                if tracker_state["active"]:  # re-check under lock
+                    _auto_stop_session(reason, last_activity)
+            continue
 
         # --- Pomodoro phase transitions ---
-        if tracker_state["pomodoro_enabled"] and tracker_state["pomodoro_phase_start"]:
-            phase_start = datetime.fromisoformat(tracker_state["pomodoro_phase_start"])
-            phase_elapsed = int((datetime.now() - phase_start).total_seconds())
+        with _state_lock:
+            if tracker_state["pomodoro_enabled"] and tracker_state["pomodoro_phase_start"]:
+                try:
+                    phase_start_dt = datetime.fromisoformat(tracker_state["pomodoro_phase_start"])
+                except Exception:
+                    phase_start_dt = now_dt
+                phase_elapsed = int((now_dt - phase_start_dt).total_seconds())
 
-            if tracker_state["pomodoro_phase"] == "focus":
-                if phase_elapsed >= config["pomodoro_focus"] and not tracker_state["pomodoro_notified"]:
-                    tracker_state["pomodoro_count"] += 1
-                    tracker_state["pomodoro_notified"] = True
-                    pomo_break = config["pomodoro_break"] // 60
-                    send_notification(
-                        f"Fokus-Block #{tracker_state['pomodoro_count']} fertig!",
-                        f"Zeit fuer {pomo_break} Min Pause. Steh auf, beweg dich!",
-                        "Hero"
-                    )
-                    # Auto-transition to break phase
-                    tracker_state["pomodoro_phase"] = "break"
-                    tracker_state["pomodoro_phase_start"] = datetime.now().isoformat()
-                    tracker_state["pomodoro_notified"] = False
+                if tracker_state["pomodoro_phase"] == "focus":
+                    if phase_elapsed >= config["pomodoro_focus"] and not tracker_state["pomodoro_notified"]:
+                        tracker_state["pomodoro_count"] += 1
+                        tracker_state["pomodoro_notified"] = True
+                        pomo_count = tracker_state["pomodoro_count"]
+                        pomo_break_min = config["pomodoro_break"] // 60
+                        send_notification(
+                            f"Fokus-Block #{pomo_count} fertig!",
+                            f"Zeit fuer {pomo_break_min} Min Pause. Steh auf, beweg dich!",
+                            "Hero"
+                        )
+                        tracker_state["pomodoro_phase"] = "break"
+                        tracker_state["pomodoro_phase_start"] = now_dt.isoformat()
+                        tracker_state["pomodoro_notified"] = False
 
-            elif tracker_state["pomodoro_phase"] == "break":
-                if phase_elapsed >= config["pomodoro_break"] and not tracker_state["pomodoro_notified"]:
-                    tracker_state["pomodoro_notified"] = True
-                    send_notification(
-                        "Pause vorbei!",
-                        "Naechster Fokus-Block startet. Los geht's!",
-                        "Ping"
-                    )
-                    tracker_state["pomodoro_phase"] = "focus"
-                    tracker_state["pomodoro_phase_start"] = datetime.now().isoformat()
-                    tracker_state["pomodoro_notified"] = False
+                elif tracker_state["pomodoro_phase"] == "break":
+                    if phase_elapsed >= config["pomodoro_break"] and not tracker_state["pomodoro_notified"]:
+                        tracker_state["pomodoro_notified"] = True
+                        send_notification(
+                            "Pause vorbei!",
+                            "Naechster Fokus-Block startet. Los geht's!",
+                            "Ping"
+                        )
+                        tracker_state["pomodoro_phase"] = "focus"
+                        tracker_state["pomodoro_phase_start"] = now_dt.isoformat()
+                        tracker_state["pomodoro_notified"] = False
 
         # --- Auto-Break: trigger at break_threshold ---
-        if idle_sec >= config["break_threshold"] and not tracker_state["on_break"]:
-            tracker_state["on_break"] = True
-            tracker_state["paused_by_idle"] = True
-            break_start = datetime.now() - timedelta(seconds=idle_sec)
-            tracker_state["break_start"] = break_start.isoformat()
-            tracker_state["idle_since"] = break_start.isoformat()
+        with _state_lock:
+            if idle_sec >= config["break_threshold"] and not tracker_state["on_break"]:
+                tracker_state["on_break"] = True
+                tracker_state["paused_by_idle"] = True
+                tracker_state["paused_by_distraction"] = False
+                break_start_dt = now_dt - timedelta(seconds=idle_sec)
+                tracker_state["break_start"] = break_start_dt.isoformat()
+                tracker_state["idle_since"] = break_start_dt.isoformat()
 
-            conn = sqlite3.connect(DB_PATH)
-            session_id = _get_active_session_id(conn)
-            conn.execute(
-                "INSERT INTO breaks (start_time, session_id, auto) VALUES (?, ?, 1)",
-                (break_start.isoformat(), session_id)
-            )
-            conn.commit()
-            conn.close()
+                conn = sqlite3.connect(DB_PATH)
+                session_id = _get_active_session_id(conn)
+                conn.execute(
+                    "INSERT INTO breaks (start_time, session_id, auto) VALUES (?, ?, 1)",
+                    (break_start_dt.isoformat(), session_id)
+                )
+                conn.commit()
+                conn.close()
 
-            send_notification(
-                "Pause gestartet",
-                "Du bist seit 2 Min inaktiv — Timer ist pausiert."
-            )
-            tracker_state["last_notification"] = now
-
-        # --- Escalating reminders during break ---
-        if tracker_state["on_break"] and tracker_state["break_start"]:
-            break_start = datetime.fromisoformat(tracker_state["break_start"])
-            break_dur = int((datetime.now() - break_start).total_seconds())
-
-            if now - tracker_state["last_notification"] > config["notification_cooldown"]:
-                minutes = break_dur // 60
-
-                if break_dur >= 600:  # 10+ min
-                    send_notification(
-                        "Ist alles okay?",
-                        f"Du bist seit {minutes} Min weg. Das war keine kurze Pause mehr.",
-                        "Sosumi"
-                    )
-                elif break_dur >= 300:  # 5+ min — aggressive
-                    send_notification(
-                        "Du scrollst schon wieder...",
-                        f"Seit {minutes} Min inaktiv. Handy weg, zurueck an die Arbeit!",
-                        "Basso"
-                    )
-                elif idle_sec >= config["idle_threshold"]:
-                    send_notification(
-                        "Hey, bist du noch da?",
-                        f"Pause laeuft seit {minutes} Min — zurueck an die Arbeit!"
-                    )
-                else:
-                    continue  # don't update last_notification
+                send_notification("Pause gestartet", "Du bist seit 2 Min inaktiv — Timer ist pausiert.")
                 tracker_state["last_notification"] = now
 
+        # --- Distraction-Break: tracker läuft, User aber in Blocklist-App ---
+        _should_close_tabs = False
+        with _state_lock:
+            if (classification == "distraction"
+                    and classification_dur >= config["distraction_grace_sec"]
+                    and not tracker_state["on_break"]):
+                tracker_state["on_break"] = True
+                tracker_state["paused_by_distraction"] = True
+                tracker_state["paused_by_idle"] = False
+                try:
+                    break_start_dt = datetime.fromisoformat(tracker_state["classification_since"])
+                except Exception:
+                    break_start_dt = now_dt
+                tracker_state["break_start"] = break_start_dt.isoformat()
+                tracker_state["idle_since"] = break_start_dt.isoformat()
+
+                conn = sqlite3.connect(DB_PATH)
+                session_id = _get_active_session_id(conn)
+                conn.execute(
+                    "INSERT INTO breaks (start_time, session_id, auto) VALUES (?, ?, 1)",
+                    (break_start_dt.isoformat(), session_id)
+                )
+                conn.commit()
+                conn.close()
+
+                what = app_name or "Ablenkung"
+                send_notification(
+                    "Ablenkung erkannt",
+                    f"Timer pausiert — du bist in {what}. Zurueck zur Arbeit!",
+                    "Basso"
+                )
+                tracker_state["last_notification"] = now
+                _should_close_tabs = config.get("auto_close_tabs", True)
+
+        if _should_close_tabs:
+            close_blocklist_tabs()
+            _should_close_tabs = False
+
+        # --- Escalating reminders during break ---
+        notify_args = None
+        with _state_lock:
+            if tracker_state["on_break"] and tracker_state["break_start"]:
+                try:
+                    brk_start_dt = datetime.fromisoformat(tracker_state["break_start"])
+                except Exception:
+                    brk_start_dt = now_dt
+                break_dur = int((now_dt - brk_start_dt).total_seconds())
+
+                if now - tracker_state["last_notification"] > config["notification_cooldown"]:
+                    minutes = break_dur // 60
+                    if break_dur >= 600:
+                        notify_args = ("Ist alles okay?", f"Du bist seit {minutes} Min weg. Das war keine kurze Pause mehr.", "Sosumi")
+                    elif break_dur >= 300:
+                        notify_args = ("Du scrollst schon wieder...", f"Seit {minutes} Min inaktiv. Handy weg, zurueck an die Arbeit!", "Basso")
+                    elif idle_sec >= config["idle_threshold"]:
+                        notify_args = ("Hey, bist du noch da?", f"Pause laeuft seit {minutes} Min — zurueck an die Arbeit!", None)
+                    if notify_args:
+                        tracker_state["last_notification"] = now
+
+        if notify_args:
+            title, msg, sound = notify_args
+            if sound:
+                send_notification(title, msg, sound)
+            else:
+                send_notification(title, msg)
+
         # --- User came back ---
-        if idle_sec < 30 and tracker_state["on_break"]:
-            break_start = datetime.fromisoformat(tracker_state["break_start"])
-            break_duration = int((datetime.now() - break_start).total_seconds())
+        # Idle-break ends on keyboard/mouse activity.
+        # Distraction-break ends when classification is no longer 'distraction' AND user is active.
+        came_back = False
+        break_start_str_cb = None
+        with _state_lock:
+            if tracker_state["on_break"]:
+                if tracker_state["paused_by_distraction"]:
+                    came_back = classification != "distraction" and idle_sec < 30
+                else:
+                    came_back = idle_sec < 30
+                if came_back:
+                    break_start_str_cb = tracker_state["break_start"]
+
+        if came_back and break_start_str_cb:
+            try:
+                brk_dt = datetime.fromisoformat(break_start_str_cb)
+            except Exception:
+                brk_dt = now_dt
+            break_duration = int((now_dt - brk_dt).total_seconds())
 
             conn = sqlite3.connect(DB_PATH)
             session_id = _get_active_session_id(conn)
-
             conn.execute(
                 "UPDATE breaks SET end_time = ?, duration_sec = ? WHERE end_time IS NULL AND session_id = ?",
-                (datetime.now().isoformat(), break_duration, session_id)
+                (now_dt.isoformat(), break_duration, session_id)
             )
             conn.execute(
                 "INSERT INTO idle_events (timestamp, duration_sec, session_id) VALUES (?, ?, ?)",
-                (tracker_state["break_start"], break_duration, session_id)
+                (break_start_str_cb, break_duration, session_id)
             )
             if session_id:
                 conn.execute(
@@ -364,10 +862,12 @@ def idle_monitor():
             conn.commit()
             conn.close()
 
-            tracker_state["on_break"] = False
-            tracker_state["paused_by_idle"] = False
-            tracker_state["break_start"] = None
-            tracker_state["idle_since"] = None
+            with _state_lock:
+                tracker_state["on_break"] = False
+                tracker_state["paused_by_idle"] = False
+                tracker_state["paused_by_distraction"] = False
+                tracker_state["break_start"] = None
+                tracker_state["idle_since"] = None
 
             send_notification(
                 "Willkommen zurueck!",
@@ -384,97 +884,170 @@ def index():
 
 @app.route("/api/start", methods=["POST"])
 def start_session():
-    if tracker_state["active"]:
-        return jsonify({"error": "Already tracking"}), 400
+    with _state_lock:
+        if tracker_state["active"]:
+            return jsonify({"error": "Already tracking"}), 400
 
     now = datetime.now()
     project_id = None
-    if request.json and request.json.get("project_id") is not None:
+    source = "live"
+    note = ""
+    body = request.json or {}
+    if body.get("project_id") is not None:
         try:
-            project_id = int(request.json["project_id"])
+            project_id = int(body["project_id"])
         except (TypeError, ValueError):
             project_id = None
+    if body.get("source") in ("live", "offline"):
+        source = body["source"]
+    if isinstance(body.get("note"), str):
+        note = body["note"].strip()
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.execute(
-        "INSERT INTO sessions (start_time, project_id) VALUES (?, ?)",
-        (now.isoformat(), project_id)
+        "INSERT INTO sessions (start_time, project_id, source, note) VALUES (?, ?, ?, ?)",
+        (now.isoformat(), project_id, source, note)
     )
     conn.commit()
     session_id = cursor.lastrowid
     conn.close()
 
-    tracker_state["active"] = True
-    tracker_state["session_start"] = now.isoformat()
-    tracker_state["paused_by_idle"] = False
-    tracker_state["idle_since"] = None
-    tracker_state["on_break"] = False
-    tracker_state["break_start"] = None
-    tracker_state["active_project_id"] = project_id
+    with _state_lock:
+        tracker_state["active"] = True
+        tracker_state["session_start"] = now.isoformat()
+        tracker_state["source"] = source
+        tracker_state["paused_by_idle"] = False
+        tracker_state["paused_by_distraction"] = False
+        tracker_state["idle_since"] = None
+        tracker_state["on_break"] = False
+        tracker_state["break_start"] = None
+        tracker_state["active_project_id"] = project_id
 
-    # Enable DND
-    set_dnd(True)
+        # Pomodoro only for live sessions
+        if source == "live" and tracker_state["pomodoro_enabled"]:
+            tracker_state["pomodoro_phase"] = "focus"
+            tracker_state["pomodoro_phase_start"] = now.isoformat()
+            tracker_state["pomodoro_notified"] = False
+        else:
+            tracker_state["pomodoro_phase"] = None
+            tracker_state["pomodoro_phase_start"] = None
 
-    # Start pomodoro if enabled
-    if tracker_state["pomodoro_enabled"]:
-        tracker_state["pomodoro_phase"] = "focus"
-        tracker_state["pomodoro_phase_start"] = now.isoformat()
-        tracker_state["pomodoro_notified"] = False
+    # DND only for live sessions (offline = you're away, computer can ring)
+    if source == "live":
+        set_dnd(True)
 
-    return jsonify({"session_id": session_id, "start_time": now.isoformat()})
+    return jsonify({"session_id": session_id, "start_time": now.isoformat(), "source": source})
 
 
 @app.route("/api/stop", methods=["POST"])
 def stop_session():
-    if not tracker_state["active"]:
-        return jsonify({"error": "Not tracking"}), 400
+    with _state_lock:
+        if not tracker_state["active"]:
+            return jsonify({"error": "Not tracking"}), 400
+        now = datetime.now()
+        start = datetime.fromisoformat(tracker_state["session_start"])
+        duration = int((now - start).total_seconds())
 
-    now = datetime.now()
-    start = datetime.fromisoformat(tracker_state["session_start"])
-    duration = int((now - start).total_seconds())
     note = request.json.get("note", "") if request.json else ""
 
     conn = sqlite3.connect(DB_PATH)
+    active_sid = _get_active_session_id(conn)
     conn.execute(
-        "UPDATE sessions SET end_time = ?, duration_sec = ?, note = ? WHERE end_time IS NULL",
-        (now.isoformat(), duration, note)
+        "UPDATE sessions SET end_time = ?, duration_sec = ?, note = ? WHERE id = ? AND end_time IS NULL",
+        (now.isoformat(), duration, note, active_sid)
     )
-    # Close any open breaks
+    # Close any open breaks for this session — compute actual duration from start_time
     conn.execute(
-        "UPDATE breaks SET end_time = ?, duration_sec = 0 WHERE end_time IS NULL",
-        (now.isoformat(),)
+        "UPDATE breaks SET end_time = ?, "
+        "duration_sec = MAX(0, CAST((julianday(?) - julianday(start_time)) * 86400 AS INTEGER)) "
+        "WHERE end_time IS NULL AND session_id = ?",
+        (now.isoformat(), now.isoformat(), active_sid)
     )
     conn.commit()
     conn.close()
 
-    tracker_state["active"] = False
-    tracker_state["session_start"] = None
-    tracker_state["paused_by_idle"] = False
-    tracker_state["on_break"] = False
-    tracker_state["pomodoro_phase"] = None
-    tracker_state["pomodoro_phase_start"] = None
-    tracker_state["active_project_id"] = None
+    with _state_lock:
+        tracker_state["active"] = False
+        tracker_state["session_start"] = None
+        tracker_state["source"] = "live"
+        tracker_state["paused_by_idle"] = False
+        tracker_state["paused_by_distraction"] = False
+        tracker_state["on_break"] = False
+        tracker_state["pomodoro_phase"] = None
+        tracker_state["pomodoro_phase_start"] = None
+        tracker_state["active_project_id"] = None
+        # Prevent start-reminder from firing immediately after manual stop
+        tracker_state["last_start_reminder"] = time.time()
 
-    # Disable DND
+    # Disable DND (outside lock — slow I/O)
     set_dnd(False)
 
     return jsonify({"duration_sec": duration})
 
 
+@app.route("/api/sessions/manual", methods=["POST"])
+def sessions_manual():
+    """Create a retroactive session entry (offline / forgotten tracking).
+    Does NOT touch tracker_state — independent of live tracking.
+    These sessions do NOT count toward the focus score.
+    """
+    data = request.json or {}
+    start_raw = (data.get("start_time") or "").strip()
+    end_raw = (data.get("end_time") or "").strip()
+    if not start_raw or not end_raw:
+        return jsonify({"error": "start_time und end_time erforderlich (ISO oder YYYY-MM-DDTHH:MM)"}), 400
+    try:
+        start_dt = datetime.fromisoformat(start_raw)
+        end_dt = datetime.fromisoformat(end_raw)
+    except ValueError:
+        return jsonify({"error": "Ungueltiges Datumsformat"}), 400
+    if end_dt <= start_dt:
+        return jsonify({"error": "end_time muss nach start_time liegen"}), 400
+    duration = int((end_dt - start_dt).total_seconds())
+    if duration > 24 * 3600:
+        return jsonify({"error": "Session darf maximal 24h dauern"}), 400
+
+    project_id = None
+    if data.get("project_id") is not None:
+        try:
+            project_id = int(data["project_id"])
+        except (TypeError, ValueError):
+            project_id = None
+    note = (data.get("note") or "").strip()
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.execute(
+        "INSERT INTO sessions (start_time, end_time, duration_sec, idle_sec, note, project_id, source) "
+        "VALUES (?, ?, ?, 0, ?, ?, 'manual')",
+        (start_dt.isoformat(), end_dt.isoformat(), duration, note, project_id)
+    )
+    conn.commit()
+    session_id = cursor.lastrowid
+    conn.close()
+    return jsonify({
+        "session_id": session_id,
+        "duration_sec": duration,
+        "source": "manual",
+    })
+
+
 @app.route("/api/pause", methods=["POST"])
 def toggle_pause():
     """Manual pause/resume — user-initiated, independent of auto-break."""
-    if not tracker_state["active"]:
-        return jsonify({"error": "Not tracking"}), 400
+    with _state_lock:
+        if not tracker_state["active"]:
+            return jsonify({"error": "Not tracking"}), 400
+        currently_on_break = tracker_state["on_break"]
+        break_start_str = tracker_state["break_start"]
 
     now = datetime.now()
     conn = sqlite3.connect(DB_PATH)
     session_id = _get_active_session_id(conn)
 
-    if tracker_state["on_break"]:
+    if currently_on_break:
         # Resume: close current break, add duration to idle_sec
-        if tracker_state["break_start"]:
-            bs = datetime.fromisoformat(tracker_state["break_start"])
+        if break_start_str:
+            bs = datetime.fromisoformat(break_start_str)
             dur = int((now - bs).total_seconds())
             conn.execute(
                 "UPDATE breaks SET end_time = ?, duration_sec = ? WHERE end_time IS NULL AND session_id = ?",
@@ -486,11 +1059,13 @@ def toggle_pause():
                     (dur, session_id)
                 )
             conn.commit()
-        tracker_state["on_break"] = False
-        tracker_state["paused_by_idle"] = False
-        tracker_state["break_start"] = None
-        tracker_state["idle_since"] = None
         conn.close()
+        with _state_lock:
+            tracker_state["on_break"] = False
+            tracker_state["paused_by_idle"] = False
+            tracker_state["paused_by_distraction"] = False
+            tracker_state["break_start"] = None
+            tracker_state["idle_since"] = None
         return jsonify({"paused": False})
     else:
         # Start manual pause
@@ -499,55 +1074,77 @@ def toggle_pause():
             (now.isoformat(), session_id)
         )
         conn.commit()
-        tracker_state["on_break"] = True
-        tracker_state["paused_by_idle"] = False
-        tracker_state["break_start"] = now.isoformat()
-        tracker_state["idle_since"] = now.isoformat()
         conn.close()
+        with _state_lock:
+            tracker_state["on_break"] = True
+            tracker_state["paused_by_idle"] = False
+            tracker_state["paused_by_distraction"] = False
+            tracker_state["break_start"] = now.isoformat()
+            tracker_state["idle_since"] = now.isoformat()
         return jsonify({"paused": True})
 
 
 @app.route("/api/status")
 def status():
-    elapsed = 0
-    if tracker_state["active"] and tracker_state["session_start"]:
-        start = datetime.fromisoformat(tracker_state["session_start"])
-        elapsed = int((datetime.now() - start).total_seconds())
+    now_dt = datetime.now()
+    idle_sec = get_idle_time_sec()  # slow I/O, outside lock
 
-    idle_sec = get_idle_time_sec()
+    with _state_lock:
+        active = tracker_state["active"]
+        session_start_str = tracker_state["session_start"]
+        on_break = tracker_state["on_break"]
+        break_start_str = tracker_state["break_start"]
+        pomo_enabled = tracker_state["pomodoro_enabled"]
+        pomo_phase = tracker_state["pomodoro_phase"]
+        pomo_phase_start_str = tracker_state["pomodoro_phase_start"]
+        pomo_count = tracker_state["pomodoro_count"]
+        active_project_id = tracker_state["active_project_id"]
+        current_app = tracker_state["current_app"]
+        current_url = tracker_state["current_url"]
+        current_cls = tracker_state["current_classification"]
+        paused_by_idle = tracker_state["paused_by_idle"]
+        paused_by_distraction = tracker_state["paused_by_distraction"]
+        source = tracker_state["source"]
+
+    elapsed = 0
+    if active and session_start_str:
+        start = datetime.fromisoformat(session_start_str)
+        elapsed = int((now_dt - start).total_seconds())
 
     break_sec = 0
-    if tracker_state["on_break"] and tracker_state["break_start"]:
-        bs = datetime.fromisoformat(tracker_state["break_start"])
-        break_sec = int((datetime.now() - bs).total_seconds())
+    if on_break and break_start_str:
+        bs = datetime.fromisoformat(break_start_str)
+        break_sec = int((now_dt - bs).total_seconds())
 
     # Pomodoro phase info
     pomo_remaining = 0
     pomo_phase_total = 0
-    if tracker_state["pomodoro_enabled"] and tracker_state["pomodoro_phase_start"]:
-        phase_start = datetime.fromisoformat(tracker_state["pomodoro_phase_start"])
-        phase_elapsed = int((datetime.now() - phase_start).total_seconds())
-        if tracker_state["pomodoro_phase"] == "focus":
-            pomo_phase_total = config["pomodoro_focus"]
-        else:
-            pomo_phase_total = config["pomodoro_break"]
+    if pomo_enabled and pomo_phase_start_str:
+        phase_start = datetime.fromisoformat(pomo_phase_start_str)
+        phase_elapsed = int((now_dt - phase_start).total_seconds())
+        pomo_phase_total = config["pomodoro_focus"] if pomo_phase == "focus" else config["pomodoro_break"]
         pomo_remaining = max(0, pomo_phase_total - phase_elapsed)
 
     return jsonify({
-        "active": tracker_state["active"],
-        "session_start": tracker_state["session_start"],
+        "active": active,
+        "session_start": session_start_str,
         "elapsed_sec": elapsed,
         "idle_sec": round(idle_sec, 1),
-        "paused_by_idle": tracker_state["paused_by_idle"],
-        "on_break": tracker_state["on_break"],
+        "paused_by_idle": paused_by_idle,
+        "paused_by_distraction": paused_by_distraction,
+        "on_break": on_break,
         "break_sec": break_sec,
         "break_threshold": config["break_threshold"],
-        "pomodoro_enabled": tracker_state["pomodoro_enabled"],
-        "pomodoro_phase": tracker_state["pomodoro_phase"],
+        "pomodoro_enabled": pomo_enabled,
+        "pomodoro_phase": pomo_phase,
         "pomodoro_remaining": pomo_remaining,
         "pomodoro_phase_total": pomo_phase_total,
-        "pomodoro_count": tracker_state["pomodoro_count"],
-        "active_project_id": tracker_state["active_project_id"],
+        "pomodoro_count": pomo_count,
+        "active_project_id": active_project_id,
+        "current_app": current_app,
+        "current_url": current_url,
+        "current_classification": current_cls,
+        "source": source,
     })
 
 
@@ -560,7 +1157,8 @@ def _classify_segments(session_start, session_end, session_breaks):
     if session_end <= session_start:
         return 0, 0
     breaks = sorted(
-        [(bs, be) for bs, be in session_breaks if be is not None],
+        [(bs, be) for bs, be in session_breaks
+         if be is not None and (be - bs).total_seconds() > BREAK_GLUE_SEC],
         key=lambda x: x[0],
     )
     focused = 0
@@ -594,11 +1192,20 @@ def today_stats():
     conn = sqlite3.connect(DB_PATH)
 
     sessions = conn.execute(
-        "SELECT id, start_time, end_time, duration_sec, idle_sec, note, project_id FROM sessions WHERE start_time LIKE ?",
+        "SELECT id, start_time, end_time, duration_sec, idle_sec, note, project_id, "
+        "COALESCE(source, 'live') AS source FROM sessions WHERE start_time LIKE ?",
         (f"{today}%",)
     ).fetchall()
 
-    total_work = sum(s[3] - s[4] for s in sessions if s[3])
+    def _is_live(s):
+        return (s[7] if len(s) > 7 else "live") == "live"
+
+    live_sessions = [s for s in sessions if _is_live(s)]
+    offline_sessions = [s for s in sessions if not _is_live(s)]
+
+    live_work = sum(s[3] - s[4] for s in live_sessions if s[3])
+    offline_work = sum(s[3] - s[4] for s in offline_sessions if s[3])
+    total_work = live_work + offline_work
     total_idle = sum(s[4] for s in sessions if s[4])
     total_raw = sum(s[3] for s in sessions if s[3])
 
@@ -622,6 +1229,8 @@ def today_stats():
     for s in sessions:
         if not s[2]:
             continue  # active session — handled below
+        if not _is_live(s):
+            continue  # offline/manual sessions bypass focus classification
         s_start = datetime.fromisoformat(s[1])
         s_end = datetime.fromisoformat(s[2])
         f, sc = _classify_segments(s_start, s_end, breaks_by_session.get(s[0], []))
@@ -634,25 +1243,36 @@ def today_stats():
             current = int((datetime.now() - start).total_seconds())
             active_id = _get_active_session_id(conn)
             active_idle = 0
+            active_source = "live"
             if active_id:
-                row = conn.execute("SELECT COALESCE(idle_sec, 0) FROM sessions WHERE id = ?", (active_id,)).fetchone()
-                active_idle = row[0] if row else 0
+                row = conn.execute(
+                    "SELECT COALESCE(idle_sec, 0), COALESCE(source, 'live') FROM sessions WHERE id = ?",
+                    (active_id,)
+                ).fetchone()
+                if row:
+                    active_idle = row[0]
+                    active_source = row[1]
             active_net = max(0, current - active_idle)
             total_raw += current
             total_work += active_net
             total_idle += active_idle
-            # Classify active session by segments
-            f, sc = _classify_segments(start, datetime.now(), breaks_by_session.get(active_id, []))
-            focused_work += f
-            scattered_work += sc
+            if active_source == "live":
+                live_work += active_net
+                # Classify active session by segments
+                f, sc = _classify_segments(start, datetime.now(), breaks_by_session.get(active_id, []))
+                focused_work += f
+                scattered_work += sc
+            else:
+                offline_work += active_net
 
     total_break = sum(b[3] for b in breaks if b[3])
     total_auto_break = sum(b[3] for b in breaks if b[3] and b[5] == 1)
     total_manual_break = sum(b[3] for b in breaks if b[3] and b[5] == 0)
 
-    # Longest focus stretch today (longest session net duration)
+    # Longest focus stretch today (longest live session net duration)
     longest_row = conn.execute(
-        "SELECT MAX(duration_sec - idle_sec) FROM sessions WHERE start_time LIKE ? AND end_time IS NOT NULL",
+        "SELECT MAX(duration_sec - idle_sec) FROM sessions "
+        "WHERE start_time LIKE ? AND end_time IS NOT NULL AND COALESCE(source,'live')='live'",
         (f"{today}%",)
     ).fetchone()
     longest_focus = (longest_row[0] or 0) if longest_row else 0
@@ -697,8 +1317,8 @@ def today_stats():
     manual_break_count = manual_breaks[1]
 
     conn.close()
-    focus_denom = total_work + long_breaks
-    focus_score = round((total_work / focus_denom * 100) if focus_denom > 0 else 100)
+    focus_denom = live_work + long_breaks
+    focus_score = round((live_work / focus_denom * 100) if focus_denom > 0 else 100)
 
     # Goal progress
     goal_pct = min(100, round(total_work / config["daily_goal"] * 100)) if config["daily_goal"] > 0 else 0
@@ -740,6 +1360,8 @@ def today_stats():
     return jsonify({
         "date": today,
         "total_work_sec": total_work,
+        "live_work_sec": live_work,
+        "offline_work_sec": offline_work,
         "total_idle_sec": total_idle,
         "total_break_sec": total_break,
         "total_auto_break_sec": total_auto_break,
@@ -752,19 +1374,20 @@ def today_stats():
         "session_count": len(sessions),
         "focus_score": focus_score,
         "focus_breakdown": {
-            "work_sec": total_work,
+            "work_sec": live_work,
+            "offline_work_sec": offline_work,
             "long_break_sec": long_breaks,
             "long_break_count": long_break_count,
             "short_break_sec": short_break_sec,
             "short_break_count": short_break_count,
             "manual_break_sec": manual_break_sec,
             "manual_break_count": manual_break_count,
-            "formula": "Arbeit / (Arbeit + Auto-Ablenkungen >3min). Manuelle Pausen zaehlen nicht.",
+            "formula": "Live-Arbeit / (Live-Arbeit + Auto-Ablenkungen >3min). Offline/Nachtrag, manuelle Pausen zaehlen nicht.",
         },
         "daily_goal": config["daily_goal"],
         "goal_pct": goal_pct,
         "sessions": [
-            {"id": s[0], "start": s[1], "end": s[2], "duration_sec": s[3], "idle_sec": s[4], "note": s[5], "project_id": s[6]}
+            {"id": s[0], "start": s[1], "end": s[2], "duration_sec": s[3], "idle_sec": s[4], "note": s[5], "project_id": s[6], "source": s[7] if len(s) > 7 else "live"}
             for s in sessions
         ],
         "breaks": [
@@ -892,6 +1515,464 @@ def history():
     })
 
 
+def _iso_week_bounds(offset_weeks=0):
+    """Return (monday_date, sunday_date) for the week that is offset_weeks from now.
+    offset_weeks=0 = current week, -1 = last week, 1 = next week."""
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+    monday = monday + timedelta(weeks=offset_weeks)
+    sunday = monday + timedelta(days=6)
+    return monday, sunday
+
+
+def _day_breakdown(conn, day_str):
+    """Return dict with focused_sec, scattered_sec, idle_sec, manual_break_sec, sessions,
+    focus_score for one day."""
+    sessions = conn.execute(
+        "SELECT id, start_time, end_time, duration_sec, idle_sec, note, project_id, "
+        "COALESCE(source,'live') AS source "
+        "FROM sessions WHERE start_time LIKE ? AND end_time IS NOT NULL",
+        (f"{day_str}%",)
+    ).fetchall()
+    breaks = conn.execute(
+        "SELECT id, start_time, end_time, duration_sec, session_id, auto "
+        "FROM breaks WHERE start_time LIKE ?",
+        (f"{day_str}%",)
+    ).fetchall()
+
+    breaks_by_session = {}
+    for b in breaks:
+        sid = b[4]
+        if sid is None:
+            continue
+        b_start = datetime.fromisoformat(b[1])
+        b_end = datetime.fromisoformat(b[2]) if b[2] else None
+        breaks_by_session.setdefault(sid, []).append((b_start, b_end))
+
+    focused = scattered = 0
+    for s in sessions:
+        if s[7] != "live":
+            continue
+        s_start = datetime.fromisoformat(s[1])
+        s_end = datetime.fromisoformat(s[2])
+        f, sc = _classify_segments(s_start, s_end, breaks_by_session.get(s[0], []))
+        focused += f
+        scattered += sc
+
+    live_work = sum((s[3] or 0) - (s[4] or 0) for s in sessions if s[7] == "live")
+    offline_work = sum((s[3] or 0) - (s[4] or 0) for s in sessions if s[7] != "live")
+    total_work = live_work + offline_work
+    total_idle = sum(s[4] or 0 for s in sessions)
+    auto_break = sum(b[3] or 0 for b in breaks if b[5] == 1)
+    manual_break = sum(b[3] or 0 for b in breaks if b[5] == 0)
+
+    long_auto = sum(b[3] or 0 for b in breaks if b[5] == 1 and (b[3] or 0) > 180)
+    denom = live_work + long_auto
+    focus_score = round((live_work / denom * 100) if denom > 0 else (100 if live_work > 0 else 0))
+
+    return {
+        "date": day_str,
+        "focused_sec": focused,
+        "scattered_sec": scattered,
+        "work_sec": total_work,
+        "live_work_sec": live_work,
+        "offline_work_sec": offline_work,
+        "idle_sec": total_idle,
+        "auto_break_sec": auto_break,
+        "manual_break_sec": manual_break,
+        "session_count": len(sessions),
+        "focus_score": focus_score,
+    }
+
+
+@app.route("/api/stats/week")
+def stats_week():
+    """Week overview with navigation via ?offset=0 (current), -1 (last), etc."""
+    try:
+        offset = int(request.args.get("offset", 0))
+    except (TypeError, ValueError):
+        offset = 0
+    monday, sunday = _iso_week_bounds(offset)
+    conn = sqlite3.connect(DB_PATH)
+    days = []
+    total_work = 0
+    total_focused = 0
+    for i in range(7):
+        d = monday + timedelta(days=i)
+        ds = d.strftime("%Y-%m-%d")
+        bd = _day_breakdown(conn, ds)
+        bd["label"] = d.strftime("%a")
+        bd["weekday"] = i
+        days.append(bd)
+        total_work += bd["work_sec"]
+        total_focused += bd["focused_sec"]
+
+    # Previous week total for comparison
+    prev_monday = monday - timedelta(weeks=1)
+    prev_sunday = sunday - timedelta(weeks=1)
+    prev_work = 0
+    for i in range(7):
+        d = prev_monday + timedelta(days=i)
+        ds = d.strftime("%Y-%m-%d")
+        r = conn.execute(
+            "SELECT COALESCE(SUM(duration_sec - idle_sec), 0) FROM sessions "
+            "WHERE start_time LIKE ? AND end_time IS NOT NULL",
+            (f"{ds}%",)
+        ).fetchone()
+        prev_work += r[0] or 0
+
+    # Best day + avg focus score (only days with work)
+    active_days = [x for x in days if x["work_sec"] > 0]
+    best_day = max(active_days, key=lambda x: x["work_sec"]) if active_days else None
+    avg_score = round(sum(x["focus_score"] for x in active_days) / len(active_days)) if active_days else 0
+
+    # Top apps + domains across the whole week (only session time, excluding breaks)
+    week_start = monday.isoformat() + "T00:00:00"
+    week_end = (sunday + timedelta(days=1)).isoformat() + "T00:00:00"
+    apps = conn.execute(
+        "SELECT app, "
+        "  (SELECT classification FROM activity_log a2 WHERE a2.app = a1.app AND a2.ts >= ? AND a2.ts < ? "
+        "   GROUP BY classification ORDER BY SUM(duration_sec) DESC LIMIT 1) as cls, "
+        "  SUM(duration_sec) FROM activity_log a1 "
+        "WHERE ts >= ? AND ts < ? AND in_break = 0 AND app IS NOT NULL "
+        "GROUP BY app ORDER BY 3 DESC LIMIT 10",
+        (week_start, week_end, week_start, week_end)
+    ).fetchall()
+    domains = conn.execute(
+        "SELECT domain, classification, SUM(duration_sec) FROM activity_log "
+        "WHERE ts >= ? AND ts < ? AND in_break = 0 AND domain IS NOT NULL "
+        "GROUP BY domain ORDER BY 3 DESC LIMIT 10",
+        (week_start, week_end)
+    ).fetchall()
+    conn.close()
+
+    return jsonify({
+        "offset": offset,
+        "week_start": monday.strftime("%Y-%m-%d"),
+        "week_end": sunday.strftime("%Y-%m-%d"),
+        "label": f"{monday.strftime('%d.%m.')} – {sunday.strftime('%d.%m.%Y')}",
+        "days": days,
+        "total_work_sec": total_work,
+        "total_focused_sec": total_focused,
+        "prev_week_work_sec": prev_work,
+        "diff_sec": total_work - prev_work,
+        "diff_pct": round((total_work - prev_work) / prev_work * 100) if prev_work > 0 else 0,
+        "avg_focus_score": avg_score,
+        "active_days": len(active_days),
+        "best_day": {"date": best_day["date"], "label": best_day["label"], "work_sec": best_day["work_sec"]} if best_day else None,
+        "top_apps": [{"name": a[0], "classification": a[1], "sec": a[2]} for a in apps],
+        "top_domains": [{"name": d[0], "classification": d[1], "sec": d[2]} for d in domains],
+    })
+
+
+@app.route("/api/stats/day/<date>")
+def stats_day(date):
+    """Detailed breakdown for a single day (YYYY-MM-DD)."""
+    try:
+        day = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "invalid date"}), 400
+    day_str = day.strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_PATH)
+
+    bd = _day_breakdown(conn, day_str)
+
+    # Sessions + project names
+    sessions = conn.execute(
+        "SELECT s.id, s.start_time, s.end_time, s.duration_sec, s.idle_sec, s.note, "
+        "s.project_id, p.name, p.color "
+        "FROM sessions s LEFT JOIN projects p ON p.id = s.project_id "
+        "WHERE s.start_time LIKE ? ORDER BY s.start_time",
+        (f"{day_str}%",)
+    ).fetchall()
+
+    # Hour-by-hour heatmap (0-23) using sessions + breaks
+    breaks = conn.execute(
+        "SELECT start_time, end_time, auto FROM breaks WHERE start_time LIKE ?",
+        (f"{day_str}%",)
+    ).fetchall()
+    hours = []
+    for h in range(24):
+        h_begin = datetime.fromisoformat(f"{day_str}T{h:02d}:00:00")
+        h_end = h_begin + timedelta(hours=1)
+        work = 0
+        brk = 0
+        for s in sessions:
+            if not s[2]:
+                continue
+            s_start = datetime.fromisoformat(s[1])
+            s_end = datetime.fromisoformat(s[2])
+            os_, oe = max(s_start, h_begin), min(s_end, h_end)
+            if os_ < oe:
+                work += (oe - os_).total_seconds()
+        for b in breaks:
+            if not b[1]:
+                continue
+            b_start = datetime.fromisoformat(b[0])
+            b_end = datetime.fromisoformat(b[1]) if b[1] else h_end
+            os_, oe = max(b_start, h_begin), min(b_end, h_end)
+            if os_ < oe:
+                brk += (oe - os_).total_seconds()
+        work = max(0, work - brk)
+        hours.append({"hour": h, "work": int(work), "break": int(brk)})
+
+    # Top apps + domains for this day
+    day_start = day_str + "T00:00:00"
+    day_end = (day + timedelta(days=1)).strftime("%Y-%m-%d") + "T00:00:00"
+    apps = conn.execute(
+        "SELECT app, classification, SUM(duration_sec) FROM activity_log "
+        "WHERE ts >= ? AND ts < ? AND in_break = 0 AND app IS NOT NULL "
+        "GROUP BY app ORDER BY 3 DESC LIMIT 15",
+        (day_start, day_end)
+    ).fetchall()
+    domains = conn.execute(
+        "SELECT domain, classification, SUM(duration_sec) FROM activity_log "
+        "WHERE ts >= ? AND ts < ? AND in_break = 0 AND domain IS NOT NULL "
+        "GROUP BY domain ORDER BY 3 DESC LIMIT 15",
+        (day_start, day_end)
+    ).fetchall()
+
+    total_activity = sum(a[2] for a in apps) or 1
+    total_dom = sum(d[2] for d in domains) or 1
+
+    # Longest focus stretch of the day
+    longest = 0
+    for s in sessions:
+        if s[2] and s[3] and s[4] is not None:
+            net = (s[3] or 0) - (s[4] or 0)
+            if net > longest:
+                longest = net
+
+    conn.close()
+
+    return jsonify({
+        **bd,
+        "longest_focus_sec": longest,
+        "sessions": [
+            {
+                "id": s[0], "start": s[1], "end": s[2],
+                "duration_sec": s[3], "idle_sec": s[4], "note": s[5],
+                "project_id": s[6], "project_name": s[7], "project_color": s[8],
+            } for s in sessions
+        ],
+        "hours": hours,
+        "top_apps": [
+            {"name": a[0], "classification": a[1], "sec": a[2], "pct": round(a[2] / total_activity * 100, 1)}
+            for a in apps
+        ],
+        "top_domains": [
+            {"name": d[0], "classification": d[1], "sec": d[2], "pct": round(d[2] / total_dom * 100, 1)}
+            for d in domains
+        ],
+    })
+
+
+def _week_key(d):
+    """ISO year-week key (YYYY-Www) for a date."""
+    y, w, _ = d.isocalendar()
+    return f"{y}-W{w:02d}"
+
+
+@app.route("/api/commitment", methods=["GET", "POST"])
+def commitment_route():
+    """Get or set today+this-week commitment.
+    GET returns both; POST body: {type:'day'|'week', hours:<number>}"""
+    today = datetime.now().date()
+    day_key = today.strftime("%Y-%m-%d")
+    wk_key = _week_key(today)
+    conn = sqlite3.connect(DB_PATH)
+
+    if request.method == "POST":
+        data = request.json or {}
+        ptype = data.get("type")
+        if ptype not in ("day", "week"):
+            conn.close()
+            return jsonify({"error": "invalid type"}), 400
+        try:
+            hours = float(data.get("hours", 0))
+        except (TypeError, ValueError):
+            hours = 0
+        target_sec = max(0, int(hours * 3600))
+        key = day_key if ptype == "day" else wk_key
+        if target_sec == 0:
+            conn.execute("DELETE FROM commitments WHERE period_type = ? AND period_key = ?", (ptype, key))
+        else:
+            conn.execute(
+                "INSERT INTO commitments (period_type, period_key, target_sec, created_at) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(period_type, period_key) DO UPDATE SET target_sec = excluded.target_sec",
+                (ptype, key, target_sec, datetime.now().isoformat())
+            )
+        conn.commit()
+
+    def load(ptype, key):
+        r = conn.execute(
+            "SELECT target_sec, created_at FROM commitments WHERE period_type = ? AND period_key = ?",
+            (ptype, key)
+        ).fetchone()
+        return {"target_sec": r[0], "created_at": r[1]} if r else None
+
+    day_c = load("day", day_key)
+    week_c = load("week", wk_key)
+
+    # Progress (actual work_sec)
+    day_work = conn.execute(
+        "SELECT COALESCE(SUM(duration_sec - idle_sec), 0) FROM sessions "
+        "WHERE start_time LIKE ? AND end_time IS NOT NULL",
+        (f"{day_key}%",)
+    ).fetchone()[0]
+    # Add active session (net of already-booked idle)
+    if tracker_state["active"] and tracker_state["session_start"]:
+        start = datetime.fromisoformat(tracker_state["session_start"])
+        if start.strftime("%Y-%m-%d") == day_key:
+            elapsed = int((datetime.now() - start).total_seconds())
+            active_id = _get_active_session_id(conn)
+            active_idle = 0
+            if active_id:
+                r = conn.execute("SELECT COALESCE(idle_sec, 0) FROM sessions WHERE id = ?", (active_id,)).fetchone()
+                active_idle = r[0] if r else 0
+            day_work += max(0, elapsed - active_idle)
+
+    monday = today - timedelta(days=today.weekday())
+    week_work = 0
+    for i in range(7):
+        d = monday + timedelta(days=i)
+        ds = d.strftime("%Y-%m-%d")
+        r = conn.execute(
+            "SELECT COALESCE(SUM(duration_sec - idle_sec), 0) FROM sessions "
+            "WHERE start_time LIKE ? AND end_time IS NOT NULL",
+            (f"{ds}%",)
+        ).fetchone()
+        week_work += r[0] or 0
+    if tracker_state["active"] and tracker_state["session_start"]:
+        start = datetime.fromisoformat(tracker_state["session_start"])
+        if monday <= start.date() <= monday + timedelta(days=6):
+            week_work += int((datetime.now() - start).total_seconds())
+
+    conn.close()
+    return jsonify({
+        "day": {
+            "key": day_key,
+            "target_sec": day_c["target_sec"] if day_c else None,
+            "work_sec": day_work,
+        },
+        "week": {
+            "key": wk_key,
+            "target_sec": week_c["target_sec"] if week_c else None,
+            "work_sec": week_work,
+        },
+    })
+
+
+@app.route("/api/stats/focus-hourly")
+def stats_focus_hourly():
+    """Focus score per time-bucket (default 15 min) for a day.
+    score = work / (work + long_auto_break) per bucket."""
+    date = request.args.get("date") or datetime.now().strftime("%Y-%m-%d")
+    try:
+        day = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "invalid date"}), 400
+    # bucket_min: 5, 10, 15, 30, 60 — default 15
+    try:
+        bucket_min = int(request.args.get("bucket_min", 15))
+    except (TypeError, ValueError):
+        bucket_min = 15
+    if bucket_min not in (5, 10, 15, 30, 60):
+        bucket_min = 15
+    bucket_sec = bucket_min * 60
+    buckets_per_day = (24 * 60) // bucket_min
+
+    day_str = day.strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_PATH)
+
+    sessions = conn.execute(
+        "SELECT id, start_time, end_time FROM sessions WHERE start_time LIKE ?",
+        (f"{day_str}%",)
+    ).fetchall()
+    long_breaks = conn.execute(
+        "SELECT start_time, end_time FROM breaks "
+        "WHERE start_time LIKE ? AND auto = 1 AND duration_sec > 180",
+        (f"{day_str}%",)
+    ).fetchall()
+    all_breaks = conn.execute(
+        "SELECT start_time, end_time FROM breaks WHERE start_time LIKE ?",
+        (f"{day_str}%",)
+    ).fetchall()
+    now = datetime.now()
+
+    # Pre-parse intervals once
+    s_iv = [(datetime.fromisoformat(s[1]), datetime.fromisoformat(s[2]) if s[2] else now) for s in sessions]
+    all_iv = [(datetime.fromisoformat(b[0]), datetime.fromisoformat(b[1]) if b[1] else now) for b in all_breaks]
+    long_iv = [(datetime.fromisoformat(b[0]), datetime.fromisoformat(b[1]) if b[1] else now) for b in long_breaks]
+    day_begin = datetime.fromisoformat(f"{day_str}T00:00:00")
+
+    buckets = []
+    # Use short threshold — need >= 30s activity to count a bucket as valid
+    MIN_ACTIVE = 30
+    for i in range(buckets_per_day):
+        b_begin = day_begin + timedelta(seconds=i * bucket_sec)
+        b_end = b_begin + timedelta(seconds=bucket_sec)
+
+        raw_sec = 0
+        for s_start, s_end in s_iv:
+            os_, oe = max(s_start, b_begin), min(s_end, b_end)
+            if os_ < oe:
+                raw_sec += (oe - os_).total_seconds()
+
+        brk_all = 0
+        for b_start, b_end2 in all_iv:
+            os_, oe = max(b_start, b_begin), min(b_end2, b_end)
+            if os_ < oe:
+                brk_all += (oe - os_).total_seconds()
+
+        long_brk = 0
+        for b_start, b_end2 in long_iv:
+            os_, oe = max(b_start, b_begin), min(b_end2, b_end)
+            if os_ < oe:
+                long_brk += (oe - os_).total_seconds()
+
+        work = max(0, raw_sec - brk_all)
+        denom = work + long_brk
+        score = round(work / denom * 100) if denom > 0 else None
+        if work + long_brk < MIN_ACTIVE:
+            score = None
+
+        # Minutes since midnight (for rendering labels)
+        minute_of_day = i * bucket_min
+        buckets.append({
+            "minute": minute_of_day,
+            "hour": minute_of_day // 60,
+            "work_sec": int(work),
+            "focus_score": score,
+        })
+
+    conn.close()
+    return jsonify({"date": day_str, "bucket_min": bucket_min, "buckets": buckets})
+
+
+@app.route("/api/stats/focus-trend")
+def stats_focus_trend():
+    """Daily focus score for the last N days (default 30). Days without work get null."""
+    try:
+        days = max(7, min(180, int(request.args.get("days", 30))))
+    except (TypeError, ValueError):
+        days = 30
+    conn = sqlite3.connect(DB_PATH)
+    out = []
+    for i in range(days - 1, -1, -1):
+        d = (datetime.now().date() - timedelta(days=i))
+        bd = _day_breakdown(conn, d.strftime("%Y-%m-%d"))
+        out.append({
+            "date": bd["date"],
+            "label": d.strftime("%d.%m."),
+            "weekday": d.strftime("%a"),
+            "focus_score": bd["focus_score"] if bd["work_sec"] > 0 else None,
+            "work_sec": bd["work_sec"],
+        })
+    conn.close()
+    return jsonify({"days": out})
+
+
 @app.route("/api/streak")
 def streak():
     """Calculate consecutive days with daily_goal met."""
@@ -1015,8 +2096,9 @@ def gamification():
     if tracker_state["active"] and tracker_state["session_start"]:
         total_work_sec_with_current += int((datetime.now() - datetime.fromisoformat(tracker_state["session_start"])).total_seconds())
 
-    # Today's work for achievements
+    # Today's work for achievements (total incl. offline for goal/hour achievements)
     today_work = _get_today_work_sec()
+    today_live_work = _get_today_work_sec(live_only=True)
     today = datetime.now().strftime("%Y-%m-%d")
     today_focus_total = today_work
     today_breaks = conn.execute(
@@ -1024,8 +2106,8 @@ def gamification():
         (f"{today}%",)
     ).fetchone()
     today_break_sec = today_breaks[0] if today_breaks else 0
-    today_focus_denom = today_work + today_break_sec
-    today_focus_score = round((today_work / today_focus_denom * 100) if today_focus_denom > 0 else 100)
+    today_focus_denom = today_live_work + today_break_sec
+    today_focus_score = round((today_live_work / today_focus_denom * 100) if today_focus_denom > 0 else 100)
 
     # Max daily work ever (for hour-based achievements)
     max_daily = conn.execute(
@@ -1228,7 +2310,7 @@ def projects_route():
         if not name:
             conn.close()
             return jsonify({"error": "name required"}), 400
-        color = data.get("color") or "#6c5ce7"
+        color = data.get("color") or "#14b8a6"
         goal_hours = int(data.get("goal_hours") or 0)
         try:
             cur = conn.execute(
@@ -1479,10 +2561,68 @@ def config_route():
         data = request.json
         for key in DEFAULT_CONFIG:
             if key in data:
-                config[key] = int(data[key])
+                if isinstance(DEFAULT_CONFIG[key], bool):
+                    config[key] = bool(data[key])
+                else:
+                    config[key] = int(data[key])
         save_config_to_db()
         return jsonify({"ok": True})
     return jsonify(config)
+
+
+@app.route("/api/ai-config", methods=["GET", "POST"])
+def ai_config_route():
+    """Get/set AI planner provider + keys. Keys are write-only (never returned)."""
+    conn = sqlite3.connect(DB_PATH)
+    if request.method == "POST":
+        data = request.json or {}
+        updates: list[tuple[str, str]] = []
+        if "ai_provider" in data:
+            val = (data["ai_provider"] or "auto").strip().lower()
+            if val not in ("auto", "groq", "anthropic"):
+                conn.close()
+                return jsonify({"error": "ai_provider must be auto|groq|anthropic"}), 400
+            updates.append(("ai_provider", val))
+        for field, key in (("groq_api_key", "groq_api_key"), ("anthropic_api_key", "anthropic_api_key")):
+            if field in data:
+                val = (data[field] or "").strip()
+                if val == "":
+                    conn.execute("DELETE FROM config WHERE key = ?", (key,))
+                else:
+                    updates.append((key, val))
+        for k, v in updates:
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (k, v))
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+
+    # GET: return provider + which keys are set (no values)
+    rows = dict(conn.execute("SELECT key, value FROM config WHERE key IN ('ai_provider','groq_api_key','anthropic_api_key')").fetchall())
+    conn.close()
+    return jsonify({
+        "ai_provider": rows.get("ai_provider", "auto"),
+        "has_groq_key": bool(rows.get("groq_api_key") or os.environ.get("GROQ_API_KEY")),
+        "has_anthropic_key": bool(rows.get("anthropic_api_key") or os.environ.get("ANTHROPIC_API_KEY")),
+        "groq_from_env": bool(os.environ.get("GROQ_API_KEY")),
+        "anthropic_from_env": bool(os.environ.get("ANTHROPIC_API_KEY")),
+    })
+
+
+@app.route("/api/activity-config", methods=["GET", "POST"])
+def activity_config_route():
+    if request.method == "POST":
+        data = request.json or {}
+        for key in DEFAULT_LIST_CONFIG:
+            if key in data and isinstance(data[key], str):
+                list_config[key] = data[key]
+        save_config_to_db()
+        return jsonify({"ok": True})
+    return jsonify({
+        **list_config,
+        "current_app": tracker_state["current_app"],
+        "current_url": tracker_state["current_url"],
+        "current_classification": tracker_state["current_classification"],
+    })
 
 
 @app.route("/api/export")
@@ -1529,6 +2669,193 @@ def export():
     )
 
 
+# ============================================================
+# AI Planner Endpoints
+# ============================================================
+
+@app.route("/api/plan/generate", methods=["POST"])
+def plan_generate():
+    data = request.json or {}
+    raw_todos = (data.get("raw_todos") or "").strip()
+    if not raw_todos:
+        return jsonify({"error": "raw_todos is required"}), 400
+
+    work_hours = int(data.get("work_hours_target") or 6)
+    today = datetime.now().strftime("%Y-%m-%d")
+    weekday = datetime.now().strftime("%A")
+
+    # Fetch carry-overs from yesterday
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_PATH)
+    carried_rows = conn.execute(
+        "SELECT title, carried_from_date FROM todos WHERE done=0 AND carried_from_date IS NOT NULL AND DATE(created_at)=?",
+        (today,)
+    ).fetchall()
+    carried_todos = [{"title": r[0], "carried_from_date": r[1] or yesterday} for r in carried_rows]
+
+    context = {
+        "work_hours_target": work_hours,
+        "date": today,
+        "weekday": weekday,
+        "carried_todos": carried_todos,
+    }
+
+    plan = _generate_day_plan(raw_todos, context, DB_PATH)
+
+    if "error" in plan and not plan.get("blocks"):
+        conn.close()
+        return jsonify(plan), 500
+
+    import json as _json
+
+    # Upsert day_plans row
+    now_iso = datetime.now().isoformat()
+    conn.execute(
+        "INSERT INTO day_plans (date, raw_input, plan_json, created_at) VALUES (?,?,?,?) "
+        "ON CONFLICT(date) DO UPDATE SET raw_input=excluded.raw_input, plan_json=excluded.plan_json",
+        (today, raw_todos, _json.dumps(plan), now_iso)
+    )
+    plan_id = conn.execute("SELECT id FROM day_plans WHERE date=?", (today,)).fetchone()[0]
+
+    # Insert todos for each non-break block
+    for block in plan.get("blocks", []):
+        if block.get("category") == "break":
+            continue
+        carried_from = None
+        if block.get("is_carry_over"):
+            carried_from = yesterday
+        conn.execute(
+            "INSERT INTO todos (title, done, priority, created_at, planned_start_time, planned_duration_min, day_plan_id, carried_from_date) "
+            "VALUES (?,0,?,?,?,?,?,?)",
+            (
+                block.get("title", "Task"),
+                {"critical": 3, "high": 2, "medium": 1, "low": 0}.get(block.get("priority", "medium"), 1),
+                now_iso,
+                block.get("start_time"),
+                block.get("duration_min"),
+                plan_id,
+                carried_from,
+            )
+        )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True, "plan": plan, "plan_id": plan_id})
+
+
+@app.route("/api/plan/today")
+def plan_today():
+    import json as _json
+    today = datetime.now().strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_PATH)
+
+    # Auto-rollover: if no plan today, offer yesterday's open todos
+    row = conn.execute("SELECT id, raw_input, plan_json, created_at FROM day_plans WHERE date=?", (today,)).fetchone()
+
+    if not row:
+        # Return carry-over candidates from yesterday
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        carryover_rows = conn.execute(
+            "SELECT id, title, planned_start_time, planned_duration_min FROM todos "
+            "WHERE done=0 AND day_plan_id IN (SELECT id FROM day_plans WHERE date=?) AND carried_from_date IS NULL",
+            (yesterday,)
+        ).fetchall()
+        conn.close()
+        return jsonify({
+            "plan": None,
+            "todos": [],
+            "carryover_candidates": [
+                {"id": r[0], "title": r[1], "planned_start_time": r[2], "planned_duration_min": r[3]}
+                for r in carryover_rows
+            ]
+        })
+
+    plan_id, raw_input, plan_json, created_at = row
+    plan_data = _json.loads(plan_json) if plan_json else {}
+
+    todos = conn.execute(
+        "SELECT id, title, done, priority, planned_start_time, planned_duration_min, carried_from_date "
+        "FROM todos WHERE day_plan_id=? ORDER BY planned_start_time",
+        (plan_id,)
+    ).fetchall()
+    conn.close()
+
+    return jsonify({
+        "plan": {
+            "id": plan_id,
+            "date": today,
+            "raw_input": raw_input,
+            "created_at": created_at,
+            **plan_data,
+        },
+        "todos": [
+            {
+                "id": r[0], "title": r[1], "done": bool(r[2]), "priority": r[3],
+                "planned_start_time": r[4], "planned_duration_min": r[5],
+                "carried_from_date": r[6],
+            }
+            for r in todos
+        ],
+        "carryover_candidates": [],
+    })
+
+
+@app.route("/api/plan/carryover")
+def plan_carryover():
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT id, title, planned_start_time, planned_duration_min FROM todos "
+        "WHERE done=0 AND day_plan_id IN (SELECT id FROM day_plans WHERE date=?)",
+        (yesterday,)
+    ).fetchall()
+    conn.close()
+    return jsonify([
+        {"id": r[0], "title": r[1], "planned_start_time": r[2], "planned_duration_min": r[3]}
+        for r in rows
+    ])
+
+
+@app.route("/api/plan/rollover", methods=["POST"])
+def plan_rollover():
+    today = datetime.now().strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    now_iso = datetime.now().isoformat()
+
+    conn = sqlite3.connect(DB_PATH)
+
+    # Get or create today's day_plans row
+    row = conn.execute("SELECT id FROM day_plans WHERE date=?", (today,)).fetchone()
+    if not row:
+        conn.execute(
+            "INSERT INTO day_plans (date, raw_input, plan_json, created_at) VALUES (?,?,?,?)",
+            (today, "[rollover]", None, now_iso)
+        )
+        plan_id = conn.execute("SELECT id FROM day_plans WHERE date=?", (today,)).fetchone()[0]
+    else:
+        plan_id = row[0]
+
+    # Fetch open todos from yesterday's plan
+    open_todos = conn.execute(
+        "SELECT title, priority, planned_start_time, planned_duration_min FROM todos "
+        "WHERE done=0 AND day_plan_id IN (SELECT id FROM day_plans WHERE date=?) AND carried_from_date IS NULL",
+        (yesterday,)
+    ).fetchall()
+
+    inserted = 0
+    for r in open_todos:
+        conn.execute(
+            "INSERT INTO todos (title, done, priority, created_at, planned_start_time, planned_duration_min, day_plan_id, carried_from_date) "
+            "VALUES (?,0,?,?,?,?,?,?)",
+            (r[0], r[1], now_iso, r[2], r[3], plan_id, yesterday)
+        )
+        inserted += 1
+
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "rolled_over": inserted})
+
+
 def backup_db():
     """Create a timestamped backup of the DB on startup."""
     if DB_PATH.exists():
@@ -1562,9 +2889,12 @@ def recover_session():
     same_day = start.strftime("%Y-%m-%d") == datetime.now().strftime("%Y-%m-%d")
 
     if same_day:
-        # Same day — resume
+        # Same day — resume; restore project_id too
+        proj_row = conn.execute("SELECT project_id FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        recovered_pid = proj_row[0] if proj_row else None
         tracker_state["active"] = True
         tracker_state["session_start"] = start_time
+        tracker_state["active_project_id"] = recovered_pid
         print(f"  Recovered session #{session_id} (started {start.strftime('%H:%M')}, {int(age//60)} min ago)")
     else:
         # Different day — close at midnight of the start day
